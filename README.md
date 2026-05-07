@@ -5,7 +5,7 @@ I am heavily assisted by AI.
 A lightweight CLI (command line interface) tool to view a remote screen over VNC, designed to work on eInk screens.
 ~~For now, you can only view, so you'll have to connect a keyboard to the serving computer, or find some other way to interact with it.~~ There is now touch input, scaling, padding, panning, and a way to quit the program via touch.
 
-This tool has been confirmed to work on several Kobo devices, such as the Kobo Libra 2 and Elipsa2E, Nia and Glo.
+This tool has been confirmed to work on Nia.
 It was optimized for text based workflows (document reading and writing), doing that it achieves a framerate of 30 fps.
 
 As VNC server we tested successfuly with TightVNC, x11vnc and TigerVNC, DroidVNC NG.
