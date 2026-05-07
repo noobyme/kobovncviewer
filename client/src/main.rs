@@ -59,17 +59,17 @@ const POWER_INPUTS: [&str; 3] = ["/dev/input/by-path/platform-bd71828-pwrkey.6.a
     "/dev/input/by-path/platform-bd71828-pwrkey.4.auto-event",
     "/dev/input/by-path/platform-bd71828-pwrkey-event"];
 
-// const FORMAT_8_BIT: PixelFormat = PixelFormat {
-//     bits_per_pixel: bits_format,
-//     depth: depth,
-//     big_endian: false,
-//     true_colour: true,
-//     red_max: 7,
-//     green_max: 7,
-//     blue_max: 3,
-//     red_shift:0,
-//     green_shift:3,
-//     blue_shift:6, };
+const RGB332: PixelFormat = PixelFormat {
+    bits_per_pixel: 8,
+    depth: 8,
+    big_endian: false,
+    true_colour: true,
+    red_max: 7,
+    green_max: 7,
+    blue_max: 3,
+    red_shift:0,
+    green_shift:3,
+    blue_shift:6, };
 // const FORMAT_16_BIT: PixelFormat = PixelFormat {
 //     bits_per_pixel: bits_format,
 //     depth: depth,
@@ -115,200 +115,211 @@ fn main() -> Result<(), Error> {
     let matches = App::new("einkvnc")
         .about("VNC client")
         .arg(
-            Arg::with_name("HOST")
+            Arg::with_name("host")
                 .help("server hostname or IP")
                 .required(true)
+                .index(1)
                 .takes_value(true)
-                .index(1),
         )
         .arg(
-            Arg::with_name("PORT")
+            Arg::with_name("pt")
                 .help("server port (default: 5900)")
+                .index(2)
                 .takes_value(true)
-                .index(2),
-
         )
         .arg(
-            Arg::with_name("USERNAME")
+            Arg::with_name("uname")
                 .help("server username")
                 .long("username")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("PASSWORD")
+            Arg::with_name("pw")
                 .help("server password")
                 .long("password")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("EXCLUSIVE")
+            Arg::with_name("excl")
                 .help("request a non-shared session")
                 .long("exclusive"),
         )
         .arg(
-            Arg::with_name("CONTRAST")
+            Arg::with_name("cont")
                 .help("apply a post processing contrast filter")
                 .long("contrast")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("GRAYPOINT")
+            Arg::with_name("gray")
                 .help("the gray point of the post processing contrast filter")
                 .long("graypoint")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("WHITECUTOFF")
+            Arg::with_name("white")
                 .help("apply a post processing filter to turn colors greater than the specified value to white (255)")
                 .long("whitecutoff")
                 .takes_value(true),
         )
         .arg(
-        Arg::with_name("ROTATE")
-            .help("rotation (1-4), tested on a Clara HD, try at own risk")
-            .long("rotate")
-            .takes_value(true),
+            Arg::with_name("rot")
+                .help("rotation (1-4), tested on a Clara HD, try at own risk")
+                .long("rotate")
+                .takes_value(true),
         )
         .arg(
-            Arg::with_name("SCALE")
+            Arg::with_name("scl")
                 .help("fit to height or width")
                 .long("scale"),
         )
         .arg(
-            Arg::with_name("LONG_TAP")
+            Arg::with_name("lt")
                 .help("long tap to send right click, for pc servers. not necessary for touchscreen servers or linux servers")
                 .long("long_tap"),
         )
         .arg(
-            Arg::with_name("FULL_UPDATE")
+            Arg::with_name("fu")
                 .help("Choose 1=Fast 2=Fastmono 3=Gui 4=Partial 5=Full")
                 .long("full_update")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("PARTIAL_UPDATE")
+            Arg::with_name("pu")
                 .help("Choose 1=Fast 2=Fastmono 3=Gui 4=Partial 5=Full")
                 .long("partial_update")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("SET_DITHER")
+            Arg::with_name("sd")
                 .help("true or false")
                 .long("set_dither")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("SET_MONOCHROME")
+            Arg::with_name("sm")
                 .help("true or false")
                 .long("set_monochrome")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("FULL_REFRESH")
+            Arg::with_name("fr")
                 .help("Choose how often to full refresh")
                 .long("full_refresh")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("FPS")
+            Arg::with_name("fps")
                 .help("Choose how often to request update")
                 .long("fps")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BPP")
+            Arg::with_name("bpp")
                 .help("Choose colour bpp")
                 .long("bpp")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("DEPTH")
+            Arg::with_name("dp")
                 .help("Choose colour depth")
                 .long("depth")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BLUE_NOISE")
+            Arg::with_name("bn")
                 .help("Blue noise dithering for 1bit output")
                 .long("blue_noise")
         )
         .arg(
-            Arg::with_name("PAN")
+            Arg::with_name("pan")
                 .help("Swipe to pan instead of swipe to drag")
                 .long("pan")
         )
         .arg(
-            Arg::with_name("RED_SHIFT")
+            Arg::with_name("rs")
                 .help("")
                 .long("red_shift")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("GREEN_SHIFT")
+            Arg::with_name("gs")
                 .help("")
                 .long("green_shift")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BLUE_SHIFT")
+            Arg::with_name("bs")
                 .help("")
                 .long("blue_shift")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("RED_MAX")
+            Arg::with_name("rm")
                 .help("")
                 .long("red_max")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("GREEN_MAX")
+            Arg::with_name("gm")
                 .help("")
                 .long("green_max")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BLUE_MAX")
+            Arg::with_name("bm")
                 .help("")
                 .long("blue_max")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("ENCODING")
+            Arg::with_name("col")
+                .help("Enable colour for Libra or Clara Colour")
+                .long("colour")
+        )
+        .arg(
+            Arg::with_name("gui")
+                .help("launch gui")
+                .long("gui")
+        )
+        .arg(
+            Arg::with_name("enc")
                 .help("Choose encoding")
                 .long("encoding")
                 .takes_value(true),
         )
             .get_matches();
 
-    let host = matches.value_of("HOST").unwrap();
-    let port = value_t!(matches.value_of("PORT"), u16).unwrap_or(5900);
-    let username = matches.value_of("USERNAME");
-    let password = matches.value_of("PASSWORD");
-    let contrast_exp = value_t!(matches.value_of("CONTRAST"), f32).unwrap_or(1.0);
-    let contrast_gray_point = value_t!(matches.value_of("GRAYPOINT"), f32).unwrap_or(224.0);
-    let white_cutoff = value_t!(matches.value_of("WHITECUTOFF"), u8).unwrap_or(255);
-    let exclusive = matches.is_present("EXCLUSIVE");
-    let rotate = value_t!(matches.value_of("ROTATE"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
-    let scale = matches.is_present("SCALE");
-    let long_tap = matches.is_present("LONG_TAP");
-    let full_update = value_t!(matches.value_of("FULL_UPDATE"), i8).unwrap_or(5);
-    let partial_update = value_t!(matches.value_of("PARTIAL_UPDATE"), i8).unwrap_or(4);
-    let set_dither = value_t!(matches.value_of("SET_DITHER"), bool).unwrap_or(false);
-    let set_monochrome = value_t!(matches.value_of("SET_MONOCHROME"), bool).unwrap_or(false);
-    let refresh = value_t!(matches.value_of("FULL_REFRESH"), u32).unwrap_or(500);
-    let fps = value_t!(matches.value_of("FPS"), f32).unwrap_or(30.0);
-    let bits_format = value_t!(matches.value_of("BPP"), u8).unwrap_or(32);
-    let depth = value_t!(matches.value_of("DEPTH"), u8).unwrap_or(32);
-    let blue_noise = matches.is_present("BLUE_NOISE");
-    let is_swipe = matches.is_present("PAN");
-    let red_shift = value_t!(matches.value_of("RED_SHIFT"), u8).unwrap_or(16);
-    let green_shift = value_t!(matches.value_of("GREEN_SHIFT"), u8).unwrap_or(8);
-    let blue_shift = value_t!(matches.value_of("BLUE_SHIFT"), u8).unwrap_or(0);
-    let red_max = value_t!(matches.value_of("RED_MAX"), u16).unwrap_or(255);
-    let green_max = value_t!(matches.value_of("GREEN_MAX"), u16).unwrap_or(255);
-    let blue_max = value_t!(matches.value_of("BLUE_MAX"), u16).unwrap_or(255);
-    let encoding = value_t!(matches.value_of("ENCODING"), u8).unwrap_or(0);
+    let host = matches.value_of("host").unwrap();
+    let port = value_t!(matches.value_of("pt"), u16).unwrap_or(5900);
+    let username = matches.value_of("uname");
+    let password = matches.value_of("pw");
+    let contrast_exp = value_t!(matches.value_of("cont"), f32).unwrap_or(1.0);
+    let contrast_gray_point = value_t!(matches.value_of("gray"), f32).unwrap_or(224.0);
+    let white_cutoff = value_t!(matches.value_of("white"), u8).unwrap_or(255);
+    let exclusive = matches.is_present("excl");
+    let rotate = value_t!(matches.value_of("rot"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
+    let scale = matches.is_present("scl");
+    let long_tap = matches.is_present("lt");
+    let full_update = value_t!(matches.value_of("fu"), i8).unwrap_or(5);
+    let partial_update = value_t!(matches.value_of("pu"), i8).unwrap_or(4);
+    let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
+    let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
+    let refresh = value_t!(matches.value_of("fr"), u32).unwrap_or(500);
+    let fps = value_t!(matches.value_of("fps"), f32).unwrap_or(30.0);
+    let bits_format = value_t!(matches.value_of("bpp"), u8).unwrap_or(32);
+    let depth = value_t!(matches.value_of("dp"), u8).unwrap_or(32);
+    let blue_noise = matches.is_present("bn");
+    let is_swipe = matches.is_present("pan");
+    let red_shift = value_t!(matches.value_of("rs"), u8).unwrap_or(16);
+    let green_shift = value_t!(matches.value_of("gs"), u8).unwrap_or(8);
+    let blue_shift = value_t!(matches.value_of("bs"), u8).unwrap_or(0);
+    let red_max = value_t!(matches.value_of("rm"), u16).unwrap_or(255);
+    let green_max = value_t!(matches.value_of("gm"), u16).unwrap_or(255);
+    let blue_max = value_t!(matches.value_of("bm"), u16).unwrap_or(255);
+    let colour = matches.is_present("col");
+    let gui = matches.is_present("gui");
+    let encoding = value_t!(matches.value_of("enc"), u8).unwrap_or(0);
 
     info!("connecting to {}:{}", host, port);
     let stream = match std::net::TcpStream::connect((host, port)) {
@@ -318,7 +329,7 @@ fn main() -> Result<(), Error> {
             std::process::exit(1)
         }
     };
-
+    if gui {} else {};
     let mut vnc = match Client::from_tcp_stream(stream, !exclusive, |methods| {
         debug!("available authentication methods: {:?}", methods);
         for method in methods {
@@ -895,6 +906,23 @@ fn main() -> Result<(), Error> {
                                 // // sample pixel...
                                 let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
 
+                                if colour {
+                                    if bpp >= 3 {
+                                        let gray = Color::Rgb(pixels[src_idx*bpp] as u8,pixels[src_idx*bpp+1] as u8 ,pixels[src_idx*bpp+2] as u8);
+                                        if blue_noise {
+                                            fb.set_pixel(
+                                                scaled_l + x_out+x_padding,
+                                                scaled_t + y_out+y_padding,
+                                                transform_dither_g2(scaled_l + x_out+x_padding, scaled_t + y_out+y_padding, gray));
+
+                                        } else {
+                                            fb.set_pixel(scaled_l + x_out+x_padding, scaled_t + y_out+y_padding, gray);
+                                        };
+                                    } else {};
+
+                                    continue
+                                };
+
                                 if src_idx*bpp > pixels.len() {
                                     //dbg!(src_idx*bpp,pixels.len());
                                 } else {
@@ -1048,6 +1076,30 @@ fn main() -> Result<(), Error> {
                                     //pixels is vec of u8, 1 byte per vector element
                                     //4 elements make one pixel
                                     let src_idx = (row*w+col) as usize;
+
+                                    if colour {
+                                        if bpp >= 3 {
+                                            let gray = Color::Rgb(pixels[src_idx*bpp] as u8,pixels[src_idx*bpp+1] as u8 ,pixels[src_idx*bpp+2] as u8);
+                                            if blue_noise {
+                                                fb.set_pixel(
+                                                    l + col-x_offset+x_padding,
+                                                    t + row-y_offset+y_padding,
+                                                    transform_dither_g2(
+                                                        l + col-x_offset+x_padding,
+                                                        t + row-y_offset+y_padding,
+                                                        gray));
+
+                                            } else {
+                                                fb.set_pixel(
+                                                    l + col-x_offset + x_padding,
+                                                    t + row-y_offset + y_padding,
+                                                    gray);
+                                            };
+                                        } else {};
+
+                                        continue
+                                    };
+
                                     let luma =
                                         if bpp >= 3 {
                                             let r = pixels[src_idx*bpp] as u32; //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
