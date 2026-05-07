@@ -28,11 +28,11 @@ You can use this tool by connecting to the eInk device through SSH, or using men
 To connect to a VNC server:
 
 ``` shell
-./einkvnc [OPTIONS]
+./einkvnc [Host][Port][OPTIONS]
 ```
 Available options:
-- Host:Required
-- Port
+- Host:Required, always the first
+- Port, the second argument if present
 - Username
 - Password
 - Contrast: apply a post processing contrast filter
