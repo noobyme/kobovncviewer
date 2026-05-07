@@ -1,9 +1,9 @@
-# eInk VNC
+#kobovnc
 
 I am heavily assisted by AI.
 
 A lightweight CLI (command line interface) tool to view a remote screen over VNC, designed to work on eInk screens.
-~~For now, you can only view, so you'll have to connect a keyboard to the serving computer, or find some other way to interact with it.~~ There is now touch input.
+~~For now, you can only view, so you'll have to connect a keyboard to the serving computer, or find some other way to interact with it.~~ There is now touch input, scaling, padding, panning, and a way to quit the program via touch.
 
 This tool has been confirmed to work on several Kobo devices, such as the Kobo Libra 2 and Elipsa2E, Nia and Glo.
 It was optimized for text based workflows (document reading and writing), doing that it achieves a framerate of 30 fps.
@@ -47,10 +47,7 @@ Advanced users:
 
 - partial_update: Choose 1=Fast/A2 2=Fastmono/A2 3=Gui/DU 4=Partial/GL16 5=Full/GC16. Testing on Kobo Nia with:DroidVNC without blue_noise turned on only mode 2 works and you end up with undithered 1 bit colour image, TightVNC both mode 1 and 2 work without the need for blue_noise but heavy detail loss and ghosting. With blue_noise turned on detail loss is less and ghosting seems better too, I think this is due to improved partial update but im not sure, but I thought a2 mode didnt differentiate between full and partial so im not sure. a2 mode does seem to improve cursor trails but only marginally. blue_noise slows down the frame rate though
 - full_update: Choose 1=Fast 2=Fastmono 3=Gui 4=Partial 5=Full
-- set_dither:Dithers 16 level grayscale
-// Ordered dithering.
-// The input color is in {0 .. 255}.
-// The output color is in G16. Grayscale 16
+- set_dither:Dithers 16 level grayscale. The input color is in {0 .. 255}. The output color is in G16. Grayscale 16
 - set_monochrome:unsure exactly wat it do, plato function
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
@@ -67,7 +64,7 @@ Advanced users:
 For example:
 
 ``` shell
-./einkvnc 192.168.2.1 5902 --password abcdefg123 --contrast 2 
+./einkvnc 192.168.2.1 5902 --password abcde123 --contrast 2 
 ```
 NickelMenu entry
 ```
@@ -88,14 +85,13 @@ To stop all other programs use this command before launching eink-vnc, so you ca
 killall -q -TERM nickel hindenburg sickel fickel strickel fontickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd bluealsa bluetoothd fmon nanoclock.lua
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
 ```
-
+These commands can restart nickel from ssh.
 ```
 (tr '\0' '\n' < /proc/$(pidof -s nickel)/environ | grep -E '^(USER|SHLVL|LD_LIBRARY_PATH|HOME|TERM|PATH|LANG|SHELL|PWD|DBUS_SESSION_BUS_ADDRESS|NICKEL_HOME|PLATFORM|PRODUCT|WIFI_MODULE|INTERFACE|UBOOT_MMC|UBOOT_RECOVERY|runlevel|prevlevel|boot_port|waveform_p|waveform_sz|hwcfg_p|hwcfg_sz|ntxfw_p|ntxfw_sz|QT_GSTREAMER_PLAYBIN_AUDIOSINK|QT_GSTREAMER_PLAYBIN_AUDIOSINK_DEVICE_PARAMETER|LIBC_FATAL_STDERR_)=' | sed 's/^/export /')
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
 cd /mnt/onboard/.adds/plato-0.9.45
 /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
-these commands can restart nickel from ssh.
 
 Failed to fill whole buffer error? You messed up somewhere in login credentials or server side ip blocking. 
 
@@ -120,7 +116,6 @@ Changelog:
 - I have copied over the ClaraColor and LibraColor device.rs from plato's latest version, 
 - added scaling, padding, added gesture swiping recognition from plato
 - If killed nickel beforehand program will be able to read power button events, power button or sleep cover will quit vnc and restart nickel, unless you started from ssh in which case it will not be able to restart nickel. Hold touchscreen for more than 6 seconds to exit without restarting nickel regardless of ssh start or not. If you want to be able to restart nickel, have take plato's nickel.sh and place inside .adds folder. the path is hardcoded, otherwise you can use nickelmenu to restart nickel too see below
-  
 - copied latest framebuffer code from plato, probably wasnt necessary, could have added small changes to add mark 12 code without needing to copy over all other rest of files but i have no device to test it with
 - add panning for resolutions bigger than device can handle
 - minor other changes
