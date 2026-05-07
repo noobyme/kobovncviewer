@@ -1,31 +1,6 @@
 # eInk VNC
 
-Updates from noobyme:
-
 I am heavily assisted by AI.
-
-- I have fixed ZRLE DroidVNC NG issues using Claude AI, mainly 2 issues it seems, the original commit did not have an issue with zrle droidvnc unless it was a debug compile, in which case it would crash after briefly appearing to work due to it being too slow, apparently. Idk for sure I asked claude to help me. The latest commit however does have an issue, zrle droidvnc doesnt work at all. The compiled file provided by anchovy is the oldest commit one, but you cannot rotate the screen with it. The changes are claude gave me are:
-  - zrle.rs adding this arm (false, 17..=127) to zrle decode fn,
-  - changing copy_indexed fn to return result,
-  - and after some testing confirmed the true error which claude is correct in identifying '&& format.depth <= 24' condition in decode fn for         32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 32. Every other change seems unnecessary, this and the          request update seem to be the main cause of issues, its possible that the other fixes are necessary but I didnt test enough to know 
-  - main.rs:forcing the colour format to 8bpp, as the oldest version did, call vnc.request_update only at end of each frame, instead of each          event, apparently this combined with debug mode can cause server to close connection. 
-- I have changed rotation default to use plato's function
-- I have added a contingency device detection using /mnt/onboard/.kobo/version instead of using environment variables because starting the tool over ssh does not pass those values. 
-- I have also setup touchscreen functionality from plato and rustvnc.
-- I have copied over the ClaraColor and LibraColor device.rs from plato's latest version, 
-- added scaling, padding, added gesture swiping recognition from plato but havent used it for anything yet
-- If killed nickel beforehand program will be able to read power button events, power button or sleep cover will quit vnc and restart nickel, unless you started from ssh in which case it will not be able to restart nickel. Hold touchscreen for more than 6 seconds to exit without restarting nickel regardless of ssh start or not. If you want to be able to restart nickel, have take plato's nickel.sh and place inside .adds folder. the path is hardcoded, otherwise you can use nickelmenu to restart nickel too see below
-  
-- copied latest framebuffer code from plato, probably wasnt necessary, could have added small changes to add mark 12 code without needing to copy over all other rest of files but i have no device to test it with
-- add panning for resolutions bigger than device can handle
-- minor other changes
-```
-(tr '\0' '\n' < /proc/$(pidof -s nickel)/environ | grep -E '^(USER|SHLVL|LD_LIBRARY_PATH|HOME|TERM|PATH|LANG|SHELL|PWD|DBUS_SESSION_BUS_ADDRESS|NICKEL_HOME|PLATFORM|PRODUCT|WIFI_MODULE|INTERFACE|UBOOT_MMC|UBOOT_RECOVERY|runlevel|prevlevel|boot_port|waveform_p|waveform_sz|hwcfg_p|hwcfg_sz|ntxfw_p|ntxfw_sz|QT_GSTREAMER_PLAYBIN_AUDIOSINK|QT_GSTREAMER_PLAYBIN_AUDIOSINK_DEVICE_PARAMETER|LIBC_FATAL_STDERR_)=' | sed 's/^/export /')
-killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
-cd /mnt/onboard/.adds/plato-0.9.45
-/mnt/onboard/.adds/plato-0.9.45/nickel.sh
-```
-these commands can restart nickel from ssh.
 
 A lightweight CLI (command line interface) tool to view a remote screen over VNC, designed to work on eInk screens.
 ~~For now, you can only view, so you'll have to connect a keyboard to the serving computer, or find some other way to interact with it.~~ There is now touch input.
@@ -34,7 +9,6 @@ This tool has been confirmed to work on several Kobo devices, such as the Kobo L
 It was optimized for text based workflows (document reading and writing), doing that it achieves a framerate of 30 fps.
 
 As VNC server we tested successfuly with TightVNC, x11vnc and TigerVNC, DroidVNC NG.
-
 
 ## Warning
 
@@ -54,26 +28,33 @@ You can use this tool by connecting to the eInk device through SSH, or using men
 To connect to a VNC server:
 
 ``` shell
-./einkvnc [IP_ADDRESS] [PORT] [OPTIONS]
+./einkvnc [OPTIONS]
 ```
 Available options:
-- Host
+- Host:Required
 - Port
 - Username
 - Password
 - Contrast: apply a post processing contrast filter
 - White_cutoff: apply a post processing filter to turn colors greater than the specified value to white (255
-- Exclusive: request a non-shared sessio
-- Rotate
+- Exclusive: request a non-shared session
+- Rotate:1-4
 - Scale: fit to width or height
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
+- pan:disable click drag for panning 
+
+Advanced users:
+
 - partial_update: Choose 1=Fast/A2 2=Fastmono/A2 3=Gui/DU 4=Partial/GL16 5=Full/GC16. Testing on Kobo Nia with:DroidVNC without blue_noise turned on only mode 2 works and you end up with undithered 1 bit colour image, TightVNC both mode 1 and 2 work without the need for blue_noise but heavy detail loss and ghosting. With blue_noise turned on detail loss is less and ghosting seems better too, I think this is due to improved partial update but im not sure, but I thought a2 mode didnt differentiate between full and partial so im not sure. a2 mode does seem to improve cursor trails but only marginally. blue_noise slows down the frame rate though
 - full_update: Choose 1=Fast 2=Fastmono 3=Gui 4=Partial 5=Full
-- set_dither:unsure exactly wat it do, plato function
+- set_dither:Dithers 16 level grayscale
+// Ordered dithering.
+// The input color is in {0 .. 255}.
+// The output color is in G16. Grayscale 16
 - set_monochrome:unsure exactly wat it do, plato function
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
-- bits_format: 8, or 32. 8 default. It would seem most servers will only give 32 bit... woops no i made a mistake of not updating the received format, you can request 8 bit
+- bits_format: 8, or 32. 8 default. It would seem most servers will only give 32 bit... woops no i made a mistake of not updating the received format variable, you can request 8 bit
 - depth
 - red_shift
 - green_shift
@@ -81,8 +62,7 @@ Available options:
 - red_max
 - green_max
 - blue_max
-- blue_noise: For A2/DU mode, use dithering to produce grayscale
-- pan:disable click drag
+- blue_noise: For A2/DU mode, use dithering to produce 1bit grayscale
 
 For example:
 
@@ -100,7 +80,7 @@ For faster framerates, use USB networking (see https://www.mobileread.com/forums
 
 Rotate to landscape display using flag --rotate 2 or --rotate 0
 
-Use a resolution smaller than or exactly equal to your display. eg common resolution of 1024x768 will fail to work correctly on Kobo Nia because 1024x758 is the maximum. Custom resolution of 1024x758 works!
+~~Use a resolution smaller than or exactly equal to your display. eg common resolution of 1024x768 will fail to work correctly on Kobo Nia because 1024x758 is the maximum. Custom resolution of 1024x758 works!~~
 
 To stop all other programs use this command before launching eink-vnc, so you can use touch input. From koreader startup script.
 
@@ -108,12 +88,42 @@ To stop all other programs use this command before launching eink-vnc, so you ca
 killall -q -TERM nickel hindenburg sickel fickel strickel fontickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd bluealsa bluetoothd fmon nanoclock.lua
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
 ```
+
+```
+(tr '\0' '\n' < /proc/$(pidof -s nickel)/environ | grep -E '^(USER|SHLVL|LD_LIBRARY_PATH|HOME|TERM|PATH|LANG|SHELL|PWD|DBUS_SESSION_BUS_ADDRESS|NICKEL_HOME|PLATFORM|PRODUCT|WIFI_MODULE|INTERFACE|UBOOT_MMC|UBOOT_RECOVERY|runlevel|prevlevel|boot_port|waveform_p|waveform_sz|hwcfg_p|hwcfg_sz|ntxfw_p|ntxfw_sz|QT_GSTREAMER_PLAYBIN_AUDIOSINK|QT_GSTREAMER_PLAYBIN_AUDIOSINK_DEVICE_PARAMETER|LIBC_FATAL_STDERR_)=' | sed 's/^/export /')
+killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
+cd /mnt/onboard/.adds/plato-0.9.45
+/mnt/onboard/.adds/plato-0.9.45/nickel.sh
+```
+these commands can restart nickel from ssh.
+
 Failed to fill whole buffer error? You messed up somewhere in login credentials or server side ip blocking. 
 
 ## Derivatives
 
 The code responsible for rendering to the eInk display is written by baskerville and taken from https://github.com/baskerville/plato.
 The code responsible for communicating using the VNC protocol is written by whitequark and taken from https://github.com/whitequark/rust-vnc.
+
+
+Changelog:
+
+- I have fixed ZRLE DroidVNC NG issues using Claude AI
+  - zrle.rs 
+	- adding (false, 17..=127) to zrle decode fn,
+	- changing copy_indexed fn to return result,
+	- remove '&& format.depth <= 24' condition in decode fn for 32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 32. Forcing 8bpp allowed the oldest einkvnc to ignore this.
+  - main.rs:forcing the colour format to 8bpp, as the oldest version did, call vnc.request_update only at end of each frame, instead of each event, apparently this combined with debug mode can cause server to close connection.
+- Grayscale conversion using RGB instead of R
+- I have changed rotation default to use plato's function
+- I have added a contingency device detection using /mnt/onboard/.kobo/version instead of using environment variables because starting the tool over ssh does not pass those values. 
+- I have also setup touchscreen functionality from plato and rustvnc.
+- I have copied over the ClaraColor and LibraColor device.rs from plato's latest version, 
+- added scaling, padding, added gesture swiping recognition from plato
+- If killed nickel beforehand program will be able to read power button events, power button or sleep cover will quit vnc and restart nickel, unless you started from ssh in which case it will not be able to restart nickel. Hold touchscreen for more than 6 seconds to exit without restarting nickel regardless of ssh start or not. If you want to be able to restart nickel, have take plato's nickel.sh and place inside .adds folder. the path is hardcoded, otherwise you can use nickelmenu to restart nickel too see below
+  
+- copied latest framebuffer code from plato, probably wasnt necessary, could have added small changes to add mark 12 code without needing to copy over all other rest of files but i have no device to test it with
+- add panning for resolutions bigger than device can handle
+- minor other changes
 
 ## Compilation instructions
 
