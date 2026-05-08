@@ -8,7 +8,7 @@ A lightweight CLI (command line interface) tool to view a remote screen over VNC
 This tool has been confirmed to work on Nia.
 It was optimized for text based workflows (document reading and writing), doing that it achieves a framerate of 30 fps.
 
-As VNC server we tested successfuly with TightVNC, x11vnc and TigerVNC, DroidVNC NG.
+As VNC server we tested successfuly with TightVNC, x11vnc, DroidVNC NG.
 
 ## Warning
 
@@ -42,7 +42,7 @@ Available options:
 - Scale: fit to width or height
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
 - pan:disable click drag for panning
-- colour:Use rgb instead of grayscale for colour devices
+- colour:Use rgb instead of grayscale for colour devices, using this means you cannot adjust contrast
 
 Advanced users:
 
@@ -52,14 +52,6 @@ Advanced users:
 - set_monochrome:unsure exactly wat it do, plato function
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
-- bits_format: 8, or 32. 8 default. It would seem most servers will only give 32 bit... woops no i made a mistake of not updating the received format variable, you can request 8 bit
-- depth
-- red_shift
-- green_shift
-- blue_shift
-- red_max
-- green_max
-- blue_max
 - blue_noise: For A2/DU mode, use dithering to produce 1bit grayscale
 
 For example:
