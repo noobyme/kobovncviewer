@@ -42,7 +42,7 @@ Available options:
 - Scale: fit to width or height
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
 - pan:disable click drag for panning
-- colour:Use rgb instead of grayscale for colour devices, using this means you cannot adjust contrast
+- colour:Use rgb instead of grayscale for colour devices
 
 Advanced users:
 
