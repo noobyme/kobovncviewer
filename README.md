@@ -58,7 +58,7 @@ For example:
 ``` shell
 ./einkvnc 192.168.2.1 5902 --password abcde123 --contrast 2 
 ```
-NickelMenu entry
+NickelMenu entry, kills all programs then restarts at end using plato
 ```
 menu_item:main:VNCTest:nickel_wifi:enable 
 chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/einkvnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
