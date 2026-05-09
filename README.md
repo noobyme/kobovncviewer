@@ -28,7 +28,7 @@ You can use this tool by connecting to the eInk device through SSH, or using men
 To connect to a VNC server:
 
 ``` shell
-./einkvnc [Host][Port][OPTIONS]
+./mnt/onboard/einkvnclatestrelease [Host][Port][OPTIONS]
 ```
 Available options:
 - Host:Required, always the first
@@ -64,7 +64,7 @@ menu_item:main:VNCTest:nickel_wifi:enable
 chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/einkvnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
 Place the einkvnc file onto your kobo ereader drive, then use the location of the file to run.
-eg /mnt/onboard/einkvnc. the . before the / means current directory. Rename the file to einkvnc instead of einkvncrelease or einkvncdebug
+eg /mnt/onboard/einkvnc. the . before the / means current directory. Rename the file to einkvnc instead of einkvncrelease or einkvncdebug if need be 
 
 For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214).
 
