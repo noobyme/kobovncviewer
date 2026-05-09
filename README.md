@@ -61,7 +61,7 @@ For example:
 NickelMenu entry
 ```
 menu_item:main:VNCTest:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/einkvnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
+chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/einkvnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
 Place the einkvnc file onto your kobo ereader drive, then use the location of the file to run.
 eg /mnt/onboard/einkvnc. the . before the / means current directory. Rename the file to einkvnc instead of einkvncrelease or einkvncdebug
