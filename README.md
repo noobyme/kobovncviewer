@@ -207,12 +207,62 @@ Compiling on Windows
 
 Download gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf, extract it. Change config.toml file. Get rustup
 
-.cargo/config.toml
+Create .cargo/config.toml
+```
 [target.armv7-unknown-linux-gnueabihf]
 #linker = "/home/jerry/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
 linker = "D:/gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc.exe"
-
+```
 rustup target add armv7-unknown-linux-gnueabihf
 cargo build --target armv7-unknown-linux-gnueabihf
 
 rustup target add armv7-unknown-linux-gnueabihf
+
+Compiling on rustrover Windows:
+Change build.rs
+Download gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf, extract it. 
+```
+use std::env;
+
+fn main() {
+    let target = env::var("TARGET").unwrap();
+
+    // Cross-compiling for Kobo.
+    if target == "arm-unknown-linux-gnueabihf" {
+        println!("cargo:rustc-env=PKG_CONFIG_ALLOW_CROSS=1");
+        println!("cargo:rustc-link-search=libs");
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+        println!("cargo:rustc-link-lib=z");
+        println!("cargo:rustc-link-lib=bz2");
+        println!("cargo:rustc-link-lib=jpeg");
+        println!("cargo:rustc-link-lib=png16");
+        println!("cargo:rustc-link-lib=gumbo");
+        println!("cargo:rustc-link-lib=openjp2");
+        println!("cargo:rustc-link-lib=jbig2dec");
+    // Handle the Linux and macOS platforms.
+    } else {
+        let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+
+        match target_os.as_ref() {
+            "linux" => {
+                println!("cargo:rustc-link-lib=dylib=stdc++");
+            }
+            "macos" => {
+                println!("cargo:rustc-link-lib=dylib=c++");
+            }
+            "windows" => {
+                // println!("cargo:rustc-link-lib=dylib=stdc++");
+            }
+            _ => panic!("Unsupported platform: {}.", target_os),
+        }
+    }
+}
+```
+Change .cargo/config.toml to explicitly set target:
+```
+[target.armv7-unknown-linux-gnueabihf]
+#linker = "/home/menooby/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
+linker = "D:/gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc.exe"
+[build]
+target = "armv7-unknown-linux-gnueabihf"
+```
