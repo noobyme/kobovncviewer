@@ -203,3 +203,16 @@ cross build --target arm-unknown-linux-musleabihf --release
 ```
 https://www.mobileread.com/forums/showthread.php?t=348481&page=2 Thanks elinkser/szybet for the toolchain info.
 
+Compiling on Windows
+
+Download gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf, extract it. Change config.toml file. Get rustup
+
+.cargo/config.toml
+[target.armv7-unknown-linux-gnueabihf]
+#linker = "/home/jerry/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc"
+linker = "D:/gcc-linaro-4.9.4-2017.01-i686-mingw32_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc.exe"
+
+rustup target add armv7-unknown-linux-gnueabihf
+cargo build --target armv7-unknown-linux-gnueabihf
+
+rustup target add armv7-unknown-linux-gnueabihf
