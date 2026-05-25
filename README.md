@@ -52,6 +52,7 @@ Advanced users:
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
 - blue_noise: For A2/DU mode, use dithering to produce 1bit grayscale
+- encoding: Request custom high speed encoding
 
 For example:
 
