@@ -80,35 +80,37 @@ fn main() -> Result<(), Error> {
         .arg(
             Arg::new("host")
                 .help("server hostname or IP")
-                .required(true)
-                .index(1)
+                // .required(true)
+                // .index(1)
+                .long("host")
                 .takes_value(true)
         )
         .arg(
-            Arg::new("pt")
+            Arg::new("port")
                 .help("server port (default: 5900)")
-                .index(2)
+                // .index(2)
+                .long("port")
                 .takes_value(true)
         )
         .arg(
-            Arg::new("uname")
+            Arg::new("username")
                 .help("server username")
                 .long("username")
                 .takes_value(true),
         )
         .arg(
-            Arg::new("pw")
+            Arg::new("password")
                 .help("server password")
                 .long("password")
                 .takes_value(true),
         )
         .arg(
-            Arg::new("excl")
+            Arg::new("exclusive")
                 .help("request a non-shared session")
                 .long("exclusive"),
         )
         .arg(
-            Arg::new("cont")
+            Arg::new("contrast_exp")
                 .help("apply a post processing contrast filter")
                 .long("contrast")
                 .takes_value(true),
@@ -126,18 +128,18 @@ fn main() -> Result<(), Error> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("rot")
+            Arg::new("rotation")
                 .help("rotation (1-4), tested on a Clara HD, try at own risk")
                 .long("rotate")
                 .takes_value(true),
         )
         .arg(
-            Arg::new("scl")
+            Arg::new("scale")
                 .help("fit to height or width")
                 .long("scale"),
         )
         .arg(
-            Arg::new("lt")
+            Arg::new("long_tap")
                 .help("long tap to send right click, for pc servers. not necessary for touchscreen servers or linux servers")
                 .long("long_tap"),
         )
@@ -177,18 +179,6 @@ fn main() -> Result<(), Error> {
                 .long("fps")
                 .takes_value(true),
         )
-        // .arg(
-        //     Arg::new("bpp")
-        //         .help("Choose colour bpp")
-        //         .long("bpp")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("dp")
-        //         .help("Choose colour depth")
-        //         .long("depth")
-        //         .takes_value(true),
-        // )
         .arg(
             Arg::new("bn")
                 .help("Blue noise dithering for 1bit output")
@@ -201,48 +191,6 @@ fn main() -> Result<(), Error> {
                 .long("pan")
                 .short('p')
         )
-        // .arg(
-        //     Arg::new("rs")
-        //         .help("")
-        //         .long("red_shift")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("gs")
-        //         .help("")
-        //         .long("green_shift")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("bs")
-        //         .help("")
-        //         .long("blue_shift")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("rm")
-        //         .help("")
-        //         .long("red_max")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("gm")
-        //         .help("")
-        //         .long("green_max")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("bm")
-        //         .help("")
-        //         .long("blue_max")
-        //         .takes_value(true),
-        // )
-        // .arg(
-        //     Arg::new("col")
-        //         .help("Enable colour for Libra or Clara Colour")
-        //         .long("colour")
-        //         .short('c')
-        // )
         .arg(
             Arg::new("gui")
                 .help("launch gui")
@@ -251,10 +199,9 @@ fn main() -> Result<(), Error> {
         )
         .arg(
             Arg::new("enc")
-                .help("Choose encoding")
+                .help("Choose custom 1bpp encoding")
                 .long("encoding")
                 .short('e')
-                .takes_value(true),
         )
         .arg(
             Arg::new("cf")
@@ -271,16 +218,16 @@ fn main() -> Result<(), Error> {
             .get_matches();
 
     let host = matches.value_of("host").unwrap();
-    let port = value_t!(matches.value_of("pt"), u16).unwrap_or(5900);
-    let username = matches.value_of("uname");
-    let password = matches.value_of("pw");
-    let contrast_exp = value_t!(matches.value_of("cont"), f32).unwrap_or(1.0);
+    let port = value_t!(matches.value_of("port"), u16).unwrap_or(5900);
+    let username = matches.value_of("username");
+    let password = matches.value_of("password");
+    let contrast_exp = value_t!(matches.value_of("contrast_exp"), f32).unwrap_or(1.0);
     let contrast_gray_point = value_t!(matches.value_of("gray"), f32).unwrap_or(224.0);
     let white_cutoff = value_t!(matches.value_of("white"), u8).unwrap_or(255);
-    let exclusive = matches.is_present("excl");
-    let rotate = value_t!(matches.value_of("rot"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
-    let scale = matches.is_present("scl");
-    let long_tap = matches.is_present("lt");
+    let exclusive = matches.is_present("exclusive");
+    let rotate = value_t!(matches.value_of("rotation"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
+    let scale = matches.is_present("scale");
+    let long_tap = matches.is_present("long_tap");
     let full_update = value_t!(matches.value_of("fu"), i8).unwrap_or(5);
     let partial_update = value_t!(matches.value_of("pu"), i8).unwrap_or(4);
     let refresh = value_t!(matches.value_of("fr"), u32).unwrap_or(500);
@@ -288,23 +235,14 @@ fn main() -> Result<(), Error> {
     let invert_red_shift = matches.is_present("irs");
 
     let blue_noise = matches.is_present("bn");
-    let is_swipe = matches.is_present("pan");
-    // let colour = matches.is_present("col");
+    let panning = matches.is_present("pan");
     let colour_format = value_t!(matches.value_of("cf"), u8).unwrap_or(0);
 
     let gui = matches.is_present("gui");
-    let encoding = value_t!(matches.value_of("enc"), u8).unwrap_or(0);
+    let encoding =  matches.is_present("enc");
 
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
-    // let bits_format = value_t!(matches.value_of("bpp"), u8).unwrap_or(8);
-    // let depth = value_t!(matches.value_of("dp"), u8).unwrap_or(8);
-    // let red_shift = value_t!(matches.value_of("rs"), u8).unwrap_or(0);
-    // let green_shift = value_t!(matches.value_of("gs"), u8).unwrap_or(3);
-    // let blue_shift = value_t!(matches.value_of("bs"), u8).unwrap_or(6);
-    // let red_max = value_t!(matches.value_of("rm"), u16).unwrap_or(7);
-    // let green_max = value_t!(matches.value_of("gm"), u16).unwrap_or(7);
-    // let blue_max = value_t!(matches.value_of("bm"), u16).unwrap_or(3);
 
     info!("connecting to {}:{}", host, port);
     let stream = match std::net::TcpStream::connect((host, port)) {
@@ -487,26 +425,73 @@ fn main() -> Result<(), Error> {
         _ => {}
     };
 
-    let vnc_format = vnc.format();
-    info!("received {:?}", vnc_format);
-    vnc.set_format(SD_COLOR_FORMAT).unwrap();
-    info!("request {:?}", SD_COLOR_FORMAT);
-    let vnc_format = vnc.format();
-    info!("received {:?}", vnc_format);
+    let mut vnc_format;
 
-    vnc.set_encodings(&[Encoding::CopyRect, Encoding::Zrle])
-        .unwrap();
 
-    vnc.request_update(
-        Rect {
-            left: 0,
-            top: 0,
-            width,
-            height,
-        },
-        false,
-    )
-    .unwrap();
+    if encoding {
+        vnc_format = vnc.format();
+        info!("received {:?}", vnc_format);
+        vnc.set_encodings(&[Encoding::rfbEncodingMono1bpp]).unwrap()
+    } else {
+        vnc_format = vnc.format();
+        info!("received {:?}", vnc_format);
+        vnc.set_format(SD_COLOR_FORMAT).unwrap();
+        info!("request {:?}", SD_COLOR_FORMAT);
+        vnc_format = vnc.format();
+        info!("received {:?}", vnc_format);
+        vnc.set_encodings(&[Encoding::CopyRect, Encoding::Zrle]).unwrap()
+    }
+
+    // vnc.request_update(
+    //     Rect {
+    //         left: 0,
+    //         top: 0,
+    //         width,
+    //         height,
+    //     },
+    //     false,
+    // )
+    // .unwrap();
+
+    if scale {
+        if vnc
+            .request_update(
+                Rect {
+                    left: 0,
+                    top: 0,
+                    width,
+                    height,
+                },
+                false,
+            )
+            .is_err()
+        {
+            error!("server disconnected");
+        }
+    } else {
+        if vnc
+            .request_update(
+                Rect {
+                    left: 0,
+                    top: 0,
+                    width: if width < fb.width() as u16 {
+                        width
+                    } else {
+                        fb.width() as u16
+                    },
+                    height: if height < fb.height() as u16 {
+                        height
+                    } else {
+                        fb.height() as u16
+                    },
+                },
+                false,
+            )
+            .is_err()
+        {
+            error!("server disconnected");
+        }
+    }
 
     #[cfg(feature = "eink_device")]
     debug!(
@@ -633,54 +618,118 @@ fn main() -> Result<(), Error> {
     if scale {
         if width > height {
             //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
-            fit_width = true;
-            scale_factor = fb.width() as f32 / width as f32;
-            y_padding = ((fb.height() - (height as f32 * scale_factor) as u32) / 2) as u32;
-            x_padding = 0;
-            scaled_fb_rect = rect![
+            if (height as f32 * (fb.width() as f32 / width as f32)) > fb.height() as f32 {
+                fit_height = true;
+                scale_factor = fb.height() as f32 / height as f32;
+                x_padding = ((fb.width() - (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as u32) / 2) as u32; //when scale use height as scale factor,
+                //width is slightly smaller than expected, 758 to 768... if aspect ratio is exactly the same, at least for nia
+                y_padding = 0;
+                scaled_fb_rect = rect![
+                0 + x_padding as i32,
+                0 + y_padding as i32,
+                (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as i32 + x_padding as i32,
+                (height as f32 * scale_factor) as i32// + y_padding as i32
+                ];
+            } else {
+                fit_width = true;
+                scale_factor = fb.width() as f32 / width as f32;
+                y_padding = ((fb.height() - (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as u32) / 2) as u32;
+                x_padding = 0;
+                scaled_fb_rect = rect![
                 0 + x_padding as i32,
                 0 + y_padding as i32,
                 (width as f32 * scale_factor) as i32,// + x_padding as i32,
-                (height as f32 * scale_factor) as i32 + y_padding as i32
-            ];
+                (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as i32 + y_padding as i32
+                ];
+            }
+
         } else if height > width {
             //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
-            fit_height = true;
-            scale_factor = fb.height() as f32 / height as f32;
-            x_padding = ((fb.width() - (width as f32 * scale_factor) as u32) / 2) as u32;
-            y_padding = 0;
-            scaled_fb_rect = rect![
+            //if 758x1024, true 3:4 will be 768x1024
+            //758/768 = 0.98710865561*1024 = 1010.66666667
+            //if 1072x1448, true 3:4 will be 1086x1448
+            //1072/1086 = 0.98710865561*1448 = 1429.33333333
+            //question is should we clip it or scale to fit the other axis instead?
+            //scaled doesnt check for bounds thus leads to crash.
+            if (width as f32 * (fb.height() as f32 / height as f32)) > fb.width() as f32 {
+                fit_width = true;
+                scale_factor = fb.width() as f32 / width as f32;
+                y_padding = ((fb.height() - (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as u32) / 2) as u32;
+                x_padding = 0;
+                scaled_fb_rect = rect![
                 0 + x_padding as i32,
                 0 + y_padding as i32,
-                (width as f32 * scale_factor) as i32 + x_padding as i32,
-                (height as f32 * scale_factor) as i32// + y_padding as i32
+                (width as f32 * scale_factor) as i32,// + x_padding as i32,
+                (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as i32 + y_padding as i32
             ];
+            } else {
+                fit_height = true;
+                scale_factor = fb.height() as f32 / height as f32;
+                x_padding = ((fb.width() - (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as u32) / 2) as u32; //when scale use height as scale factor,
+                //width is slightly smaller than expected, 758 to 768... if aspect ratio is exactly the same, at least for nia
+                y_padding = 0;
+                scaled_fb_rect = rect![
+                0 + x_padding as i32,
+                0 + y_padding as i32,
+                (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as i32 + x_padding as i32,
+                (height as f32 * scale_factor) as i32// + y_padding as i32
+                ];
+            };
+
         } else if height == width {
             if fb.height() > fb.width() {
                 //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
-                fit_width = true;
                 //want to fit to smallest fb axis instead.
-                scale_factor = fb.width() as f32 / width as f32;
-                x_padding = ((fb.width() - (width as f32 * scale_factor) as u32) / 2) as u32;
-                y_padding = 0;
-                scaled_fb_rect = rect![
-                    0 + x_padding as i32,
-                    0 + y_padding as i32,
-                    (width as f32 * scale_factor) as i32 + x_padding as i32,
-                    (height as f32 * scale_factor) as i32// + y_padding as i32
-                ];
+                if (width as f32 * (fb.height() as f32 / height as f32)) > fb.width() as f32 {
+                    fit_width = true;
+                    scale_factor = fb.width() as f32 / width as f32;
+                    y_padding = ((fb.height() - (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as u32) / 2) as u32;
+                    x_padding = 0;
+                    scaled_fb_rect = rect![
+                        0 + x_padding as i32,
+                        0 + y_padding as i32,
+                        (width as f32 * scale_factor) as i32,// + x_padding as i32,
+                        (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as i32 + y_padding as i32
+                    ];
+                } else {
+                    fit_height = true;
+                    scale_factor = fb.height() as f32 / height as f32;
+                    x_padding = ((fb.width() - (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as u32) / 2) as u32; //when scale use height as scale factor,
+                    //width is slightly smaller than expected, 758 to 768... if aspect ratio is exactly the same, at least for nia
+                    y_padding = 0;
+                    scaled_fb_rect = rect![
+                        0 + x_padding as i32,
+                        0 + y_padding as i32,
+                        (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as i32 + x_padding as i32,
+                        (height as f32 * scale_factor) as i32// + y_padding as i32
+                    ];
+                };
             } else {
                 //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
-                fit_height = true;
-                scale_factor = fb.height() as f32 / height as f32;
-                y_padding = ((fb.height() - (height as f32 * scale_factor) as u32) / 2) as u32;
-                x_padding = 0;
-                scaled_fb_rect = rect![
-                    0 + x_padding as i32,
-                    0 + y_padding as i32,
-                    (width as f32 * scale_factor) as i32,// + x_padding as i32,
-                    (height as f32 * scale_factor) as i32 + y_padding as i32
-                ];
+                if (height as f32 * (fb.width() as f32 / width as f32)) > fb.height() as f32 {
+                    fit_height = true;
+                    scale_factor = fb.height() as f32 / height as f32;
+                    x_padding = ((fb.width() - (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as u32) / 2) as u32; //when scale use height as scale factor,
+                    //width is slightly smaller than expected, 758 to 768... if aspect ratio is exactly the same, at least for nia
+                    y_padding = 0;
+                    scaled_fb_rect = rect![
+                        0 + x_padding as i32,
+                        0 + y_padding as i32,
+                        (width as f32 * scale_factor).clamp(0.0, fb.width() as f32) as i32 + x_padding as i32,
+                        (height as f32 * scale_factor) as i32// + y_padding as i32
+                    ];
+                } else {
+                    fit_width = true;
+                    scale_factor = fb.width() as f32 / width as f32;
+                    y_padding = ((fb.height() - (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as u32) / 2) as u32;
+                    x_padding = 0;
+                    scaled_fb_rect = rect![
+                        0 + x_padding as i32,
+                        0 + y_padding as i32,
+                        (width as f32 * scale_factor) as i32,// + x_padding as i32,
+                        (height as f32 * scale_factor).clamp(0.0, fb.height() as f32) as i32 + y_padding as i32
+                    ];
+                }
             }
         };
     } else {
@@ -917,7 +966,7 @@ fn main() -> Result<(), Error> {
                                                 //dbg!((((position.x as f32 - x_padding as f32) / scale_factor) as u16).clamp(0,width as u16), (((position.y as f32 - y_padding as f32) / scale_factor) as u16).clamp(0,height as u16));
                                                 //100-10/2 45 100/2-10=40
                                                 //from physical framebuffer means must minus padding before scale, scale is so original
-                                            } else if is_swipe {
+                                            } else if panning {
                                                 vnc.send_pointer_event(
                                                     0x00,
                                                     ((position.x as i16 - x_padding as i16
@@ -1073,6 +1122,7 @@ fn main() -> Result<(), Error> {
                 }
                 Event::PutPixels(vnc_rect, ref pixels) => {
                     debug!("Put pixels");
+                    debug!("{}",pixels.len());
 
                     let elapsed_ms = time_at_sol.elapsed().as_millis();
                     debug!("network Δt: {}", elapsed_ms);
@@ -1108,51 +1158,108 @@ fn main() -> Result<(), Error> {
                                 let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
 
                                 let mut luma = 0;
-                                if src_idx * bpp > pixels.len() {
+                                let r;
+                                let g;
+                                let b;
+
+                                if !encoding && src_idx * bpp > pixels.len() {
                                     //dbg!(src_idx*bpp,pixels.len());
                                     //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
                                     //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
                                     //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
                                     //u8 used bc cpu is byte addressable, smallest unit
+                                    dbg!(src_idx * bpp > pixels.len());
+                                    continue
                                 } else {
-                                    let (r, g, b) = if bpp >= 3 {
-                                        let r = pixels[src_idx * bpp];
-                                        let g = pixels[src_idx * bpp + 1];
-                                        let b = pixels[src_idx * bpp + 2];
-                                        (r, g, b)
+                                    if encoding {
+                                        if src_idx * 1/8 > pixels.len() {
+                                            continue
+                                        }
+                                        // let byte = pixels[src_idx*1/8];
+                                        // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
+                                        // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
+                                        //
+                                        // r = luma;
+                                        // g = luma;
+                                        // // b = luma;
+                                        let row_bytes = (vnc_rect.width as usize + 7) / 8;
+
+                                        let byte_index =
+                                            (local_y as usize * row_bytes) + (local_x as usize / 8);
+
+                                        let bit_pos = 7 - (local_x % 8);
+
+                                        let byte = pixels[byte_index];
+                                        let bit = (byte >> bit_pos) & 1;
+
+                                        let luma = if bit == 1 { 255 } else { 0 };
+                                        r = luma;
+                                        g = luma;
+                                        b = luma;
+                                        // let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                        // let mut buf = vec![0u8; (vnc_rect.width * vnc_rect.height) as usize];
+                                        // for row in 0..vnc_rect.height {
+                                        //     for col in 0..vnc_rect.width {
+                                        //         let byte_idx = row as usize * row_bytes + col as usize / 8;
+                                        //         let bit_pos  = 7 - (col % 8);
+                                        //         buf[(row * vnc_rect.width + col) as usize] =
+                                        //             if (pixels[byte_idx] >> bit_pos) & 1 == 1 { 0xFF } else { 0x00 };
+                                        //     }
+                                        // }
+                                        // single blit instead of 776k individual set_pixel calls
+                                        // fb.draw_grayscale_buf(l, t, w, h, &buf);
+                                        // continue
+                                        // This requires fb to expose a bulk-write method, but should drop draw time from ~490ms to <10ms.
+                                    } else if bpp >= 3 {
+                                        r = pixels[src_idx * bpp];
+                                        g = pixels[src_idx * bpp + 1];
+                                        b = pixels[src_idx * bpp + 2];
                                     } else if bpp == 2 && colour_format == 4 {
                                         // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
                                         // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
                                         let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
                                             | (pixels[src_idx * bpp] as u16); //little endian
-                                        let r = (bytes >> 0) & 0b11111;
-                                        let g = (bytes >> 5) & 0b111111;
-                                        let b = (bytes >> 11) & 0b11111;
+                                        let r0 = (bytes >> 0) & 0b11111;
+                                        let g0 = (bytes >> 5) & 0b111111;
+                                        let b0 = (bytes >> 11) & 0b11111;
                                         //rgb565? rrrrrggggggbbbbb
                                         //bbbbbggggggrrrrr
-                                        ((r as f32 * 8.225806) as u8, (g as f32 * 4.047619) as u8, (b as f32 * 8.225806) as u8)
+                                        r = (r0 as f32 * 8.225806) as u8;
+                                        g = (g0 as f32 * 4.047619) as u8;
+                                        b = (b0 as f32 * 8.225806) as u8;
                                     } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
                                         let byte = pixels[src_idx];
-                                        let r = (byte >> 2) & 0b11;
-                                        let g = (byte >> 4) & 0b11;
-                                        let b = (byte >> 6) & 0b11;
-                                        (r * 85, g * 85, b * 85)
+                                        let r0 = (byte >> 2) & 0b11;
+                                        let g0 = (byte >> 4) & 0b11;
+                                        let b0 = (byte >> 6) & 0b11;
+
+                                        r = r0*85;
+                                        g = g0*85;
+                                        b = b0*85;
+
                                         //rrggbbaa
                                         //aabbggrr
                                     } else if bpp == 1 && colour_format == 3 {
                                         let byte = pixels[src_idx];
-                                        let r = (byte >> 0) & 0b111;
-                                        let g = (byte >> 3) & 0b111;
-                                        let b = (byte >> 6) & 0b11;
-                                        ((r as f32 * 36.42857) as u8, (g as f32 * 36.42857) as u8, b * 85)
+                                        let r0 = (byte >> 0) & 0b111;
+                                        let g0 = (byte >> 3) & 0b111;
+                                        let b0 = (byte >> 6) & 0b11;
+
+                                        r = (r0 as f32 * 36.42857) as u8;
+                                        g = (g0 as f32 * 36.42857) as u8;
+                                        b = b0 * 85;
+
                                         //rrrgggbb
                                         //bbgggrrr
                                     } else {
                                         let byte = pixels[src_idx];
-                                        let r = (byte >> 0) & 0b11;
-                                        let g = (byte >> 2) & 0b11;
-                                        let b = (byte >> 4) & 0b11;
-                                        (r * 85, g * 85, b * 85)
+                                        let r0 = (byte >> 0) & 0b11;
+                                        let g0 = (byte >> 2) & 0b11;
+                                        let b0 = (byte >> 4) & 0b11;
+
+                                        r = r0*85;
+                                        g = g0*85;
+                                        b = b0*85;
                                         //rrggbb??
                                     };
 
@@ -1178,52 +1285,6 @@ fn main() -> Result<(), Error> {
                                             rgb,
                                         );
                                     };
-
-                                    // if colour {
-                                    //     let r_luma = post_proc_bin.data[r as usize];
-                                    //     let g_luma = post_proc_bin.data[g as usize];
-                                    //     let b_luma = post_proc_bin.data[b as usize];
-                                    //
-                                    //     let rgb = Color::Rgb(r_luma, g_luma, b_luma);
-                                    //     if blue_noise {
-                                    //         fb.set_pixel(
-                                    //             scaled_l + x_out + x_padding,
-                                    //             scaled_t + y_out + y_padding,
-                                    //             transform_dither_g2(
-                                    //                 scaled_l + x_out + x_padding,
-                                    //                 scaled_t + y_out + y_padding,
-                                    //                 rgb,
-                                    //             ),
-                                    //         );
-                                    //     } else {
-                                    //         fb.set_pixel(
-                                    //             scaled_l + x_out + x_padding,
-                                    //             scaled_t + y_out + y_padding,
-                                    //             rgb,
-                                    //         );
-                                    //     };
-                                    //     // } else {};
-                                    // } else {
-                                    //     luma = (r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000;
-                                    //     let gray = Color::Gray(post_proc_bin.data[luma as usize]);
-                                    //     if blue_noise {
-                                    //         fb.set_pixel(
-                                    //             scaled_l + x_out + x_padding,
-                                    //             scaled_t + y_out + y_padding,
-                                    //             transform_dither_g2(
-                                    //                 scaled_l + x_out + x_padding,
-                                    //                 scaled_t + y_out + y_padding,
-                                    //                 gray,
-                                    //             ),
-                                    //         );
-                                    //     } else {
-                                    //         fb.set_pixel(
-                                    //             scaled_l + x_out + x_padding,
-                                    //             scaled_t + y_out + y_padding,
-                                    //             gray,
-                                    //         );
-                                    //     };
-                                    // };
                                 }
                             }
                         }
@@ -1363,52 +1424,110 @@ fn main() -> Result<(), Error> {
                                     let src_idx = (row * w + col) as usize;
 
                                     let mut luma = 0;
-                                    if src_idx * bpp > pixels.len() {
+                                    let r;
+                                    let g;
+                                    let b;
+
+                                    if !encoding && src_idx * bpp > pixels.len() {
                                         //dbg!(src_idx*bpp,pixels.len());
+                                        //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
+                                        //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
+                                        //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
+                                        //u8 used bc cpu is byte addressable, smallest unit
+                                        dbg!(src_idx * bpp > pixels.len());
+                                        continue
                                     } else {
-                                        let (r, g, b) = if bpp >= 3 {
-                                            let r = pixels[src_idx * bpp]; //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
-                                                                           //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
-                                                                           //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
-                                                                           //u8 used bc cpu is byte addressable, smallest unit
-                                            let g = pixels[src_idx * bpp + 1];
-                                            let b = pixels[src_idx * bpp + 2];
-                                            (r, g, b)
+                                        if encoding {
+                                            if src_idx * 1/8 > pixels.len() {
+                                                continue
+                                            }
+                                            // let byte = pixels[src_idx*1/8];
+                                            // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
+                                            // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
+                                            //
+                                            // r = luma;
+                                            // g = luma;
+                                            // b = luma;
+                                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
+
+                                            let byte_index =
+                                                (row as usize * row_bytes) + (col as usize / 8);
+
+                                            let bit_pos = 7 - (col % 8);
+
+                                            let byte = pixels[byte_index];
+                                            let bit = (byte >> bit_pos) & 1;
+
+                                            let luma = if bit == 1 { 255 } else { 0 };
+                                            r = luma;
+                                            g = luma;
+                                            b = luma;
+                                            // let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                            // let mut buf = vec![0u8; (vnc_rect.width * vnc_rect.height) as usize];
+                                            // for row in 0..vnc_rect.height {
+                                            //     for col in 0..vnc_rect.width {
+                                            //         let byte_idx = row as usize * row_bytes + col as usize / 8;
+                                            //         let bit_pos  = 7 - (col % 8);
+                                            //         buf[(row * vnc_rect.width + col) as usize] =
+                                            //             if (pixels[byte_idx] >> bit_pos) & 1 == 1 { 0xFF } else { 0x00 };
+                                            //     }
+                                            // }
+                                            // single blit instead of 776k individual set_pixel calls
+                                            // fb.draw_grayscale_buf(l, t, w, h, &buf);
+                                            // continue
+                                            // This requires fb to expose a bulk-write method, but should drop draw time from ~490ms to <10ms.
+
+                                        } else if bpp >= 3 {
+                                            r = pixels[src_idx * bpp];
+                                            g = pixels[src_idx * bpp + 1];
+                                            b = pixels[src_idx * bpp + 2];
                                         } else if bpp == 2 && colour_format == 4 {
                                             // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
                                             // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
                                             let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
                                                 | (pixels[src_idx * bpp] as u16); //little endian
-                                            let r = (bytes >> 0) & 0b11111;
-                                            let g = (bytes >> 5) & 0b111111;
-                                            let b = (bytes >> 11) & 0b11111;
+                                            let r0 = (bytes >> 0) & 0b11111;
+                                            let g0 = (bytes >> 5) & 0b111111;
+                                            let b0 = (bytes >> 11) & 0b11111;
                                             //rgb565? rrrrrggggggbbbbb
                                             //bbbbbggggggrrrrr
-                                            ((r as f32 * 8.225806) as u8, (g as f32 * 4.047619) as u8, (b as f32 * 8.225806) as u8)
+                                            r = (r0 as f32 * 8.225806) as u8;
+                                            g = (g0 as f32 * 4.047619) as u8;
+                                            b = (b0 as f32 * 8.225806) as u8;
                                         } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
                                             let byte = pixels[src_idx];
-                                            let r = (byte >> 0) & 0b11;
-                                            let g = (byte >> 2) & 0b11;
-                                            let b = (byte >> 4) & 0b11;
-                                            (r * 85, g * 85, b * 85)
+                                            let r0 = (byte >> 2) & 0b11;
+                                            let g0 = (byte >> 4) & 0b11;
+                                            let b0 = (byte >> 6) & 0b11;
+
+                                            r = r0*85;
+                                            g = g0*85;
+                                            b = b0*85;
+
                                             //rrggbbaa
                                             //aabbggrr
                                         } else if bpp == 1 && colour_format == 3 {
                                             let byte = pixels[src_idx];
-                                            let r = (byte >> 0) & 0b111;
-                                            let g = (byte >> 3) & 0b111;
-                                            let b = (byte >> 6) & 0b11;
-                                            ((r as f32 * 36.42857) as u8, (g as f32 * 36.42857) as u8, b * 85)
+                                            let r0 = (byte >> 0) & 0b111;
+                                            let g0 = (byte >> 3) & 0b111;
+                                            let b0 = (byte >> 6) & 0b11;
+
+                                            r = (r0 as f32 * 36.42857) as u8;
+                                            g = (g0 as f32 * 36.42857) as u8;
+                                            b = b0 * 85;
+
                                             //rrrgggbb
                                             //bbgggrrr
                                         } else {
                                             let byte = pixels[src_idx];
-                                            let r = (byte >> 0) & 0b11;
-                                            let g = (byte >> 2) & 0b11;
-                                            let b = (byte >> 4) & 0b11;
-                                            (r * 85, g * 85, b * 85)
-                                            //rrggbb?? big endian
-                                            //??bbggrr little endian, we use this
+                                            let r0 = (byte >> 0) & 0b11;
+                                            let g0 = (byte >> 2) & 0b11;
+                                            let b0 = (byte >> 4) & 0b11;
+
+                                            r = r0*85;
+                                            g = g0*85;
+                                            b = b0*85;
+                                            //rrggbb??
                                         };
 
                                         let r_luma = post_proc_bin.data[r as usize];
@@ -1433,53 +1552,6 @@ fn main() -> Result<(), Error> {
                                                 rgb,
                                             );
                                         };
-
-                                        // if colour {
-                                        //     let r_luma = post_proc_bin.data[r as usize];
-                                        //     let g_luma = post_proc_bin.data[g as usize];
-                                        //     let b_luma = post_proc_bin.data[b as usize];
-                                        //
-                                        //     let rgb = Color::Rgb(r_luma, g_luma, b_luma);
-                                        //     if blue_noise {
-                                        //         fb.set_pixel(
-                                        //             l + col - x_offset + x_padding,
-                                        //             t + row - y_offset + y_padding,
-                                        //             transform_dither_g2(
-                                        //                 l + col - x_offset + x_padding,
-                                        //                 t + row - y_offset + y_padding,
-                                        //                 rgb,
-                                        //             ),
-                                        //         );
-                                        //     } else {
-                                        //         fb.set_pixel(
-                                        //             l + col - x_offset + x_padding,
-                                        //             t + row - y_offset + y_padding,
-                                        //             rgb,
-                                        //         );
-                                        //     };
-                                        // } else {
-                                        //     luma = (r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000;
-                                        //     let gray =
-                                        //         Color::Gray(post_proc_bin.data[luma as usize]);
-                                        //     if blue_noise {
-                                        //         fb.set_pixel(
-                                        //             l + col - x_offset + x_padding, //although set pixel is for... device co ords, bc we are using vnc co ords must pan and subtract?
-                                        //             t + row - y_offset + y_padding,
-                                        //             transform_dither_g2(
-                                        //                 l + col - x_offset + x_padding,
-                                        //                 t + row - y_offset + y_padding,
-                                        //                 gray,
-                                        //             ),
-                                        //         );
-                                        //     } else {
-                                        //         fb.set_pixel(
-                                        //             l + col - x_offset + x_padding,
-                                        //             t + row - y_offset + y_padding,
-                                        //             gray,
-                                        //         );
-                                        //         // dbg!(l + col-x_offset+x_padding, t + row-y_offset +y_padding, gray);
-                                        //     };
-                                        // };
                                     };
                                 }
                             }
