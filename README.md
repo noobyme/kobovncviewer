@@ -52,6 +52,7 @@ Advanced users:
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
 - blue_noise: For A2/DU mode, use dithering to produce 1bit grayscale
+- encoding: Request custom high speed encoding, best used with A2 or DU waveform
 
 For example:
 
@@ -67,6 +68,13 @@ Place the einkvnc file onto your kobo ereader drive, then use the location of th
 eg /mnt/onboard/einkvnc. the . before the / means current directory. Rename the file to einkvnc instead of einkvncrelease or einkvncdebug if need be 
 
 For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214).
+
+Example of using ssh tunneling, you need NiLuJe's KoboStuff.
+https://www.mobileread.com/forums/showthread.php?t=254214
+```
+ssh -L 15900:vnc-server:5900 -N user@host
+einkvnc --host 127.0.0.1 --port 15900
+```
 
 Rotate to landscape display using flag --rotate 2 or --rotate 0
 
