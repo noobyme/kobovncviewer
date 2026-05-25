@@ -168,6 +168,25 @@ impl Event {
                             protocol::Encoding::DesktopSize => {
                                 send!(tx_events, Event::Resize(rectangle.width, rectangle.height))
                             }
+                            protocol::Encoding::rfbEncodingMono1bpp => {
+                                // let length = ((rectangle.width as usize)
+                                //     * (rectangle.height as usize)
+                                //     +7) / 8;
+                                let row_bytes = (rectangle.width as usize + 7) / 8;
+                                let length = row_bytes * rectangle.height as usize;
+
+                                let row_bytes = (rectangle.width as usize + 7) / 8;
+                                let length = row_bytes * rectangle.height as usize;
+                                // IMPORTANT: read dither mode byte
+                                let _dither_mode = stream.read_u8()?;
+
+                                let mut pixels = vec![0; length];
+                                // let mut pixels = Vec::with_capacity(length);
+                                // unsafe { pixels.set_len(length as usize) }
+                                stream.read_exact(&mut pixels)?;
+                                debug!("<- ...pixels");
+                                send!(tx_events, Event::PutPixels(dst, pixels))
+                            }
                             _ => return Err(Error::Unexpected("encoding")),
                         };
                     }
