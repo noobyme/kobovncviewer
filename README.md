@@ -72,8 +72,11 @@ For faster framerates, use USB networking (see https://www.mobileread.com/forums
 Example of using ssh tunneling, you need NiLuJe's KoboStuff.
 https://www.mobileread.com/forums/showthread.php?t=254214
 ```
-ssh -L 15900:vnc-server:5900 -N user@host
-einkvnc --host 127.0.0.1 --port 15900
+ip link set lo up
+ip addr add 127.0.0.1/8 dev lo
+ifconfig lo 127.0.0.1 up
+ssh -L 15900:127.0.0.1:5900 -N user@vncserverip 
+einkvnc --host 127.0.0.1 --port 15900 #Open new shell for this command
 ```
 
 Rotate to landscape display using flag --rotate 2 or --rotate 0
