@@ -2,24 +2,19 @@
 
 I am heavily assisted by AI.
 
-A lightweight CLI (command line interface) tool to view a remote screen over VNC, designed to work on eInk screens.
-~~For now, you can only view, so you'll have to connect a keyboard to the serving computer, or find some other way to interact with it.~~ There is now touch input, scaling, padding, panning, and a way to quit the program via touch.
+There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing.
 
 This tool has been confirmed to work on Nia.
-It was optimized for text based workflows (document reading and writing), doing that it achieves a framerate of 30 fps.
 
-As VNC server we tested successfuly with TightVNC, x11vnc, DroidVNC NG.
+VNC server tested successfuly with TightVNC, x11vnc, DroidVNC NG.
 
 ## Warning
 
 The screen can refresh up to 30 times per second, this will degrade the eInk display rapidly.
 Do not use with fast changing content like videos.
 
-Furthermore, this tool was only tested on Kobo Libra 2 and Kobo Elipsa 2E.
 **It is possible that it will damage yours.**
 *I cannot be held responsible, use this tool at your own risk.*
-
-[einkvnc_demo_kobo_rotated.webm](https://user-images.githubusercontent.com/4356678/184497681-683af36b-e226-47fc-8993-34a5b356edba.webm)
 
 ## Usage
 
@@ -28,7 +23,7 @@ You can use this tool by connecting to the eInk device through SSH, or using men
 To connect to a VNC server:
 
 ``` shell
-./mnt/onboard/einkvnclatestrelease [Host][Port][OPTIONS]
+./mnt/onboard/kobovnc [Host][Port][OPTIONS]
 ```
 Available options:
 - Host:Required, always the first
@@ -38,10 +33,11 @@ Available options:
 - Contrast: apply a post processing contrast filter
 - White_cutoff: apply a post processing filter to turn colors greater than the specified value to white (255
 - Exclusive: request a non-shared session
-- Rotate:1-4
+- Rotate:0-3
 - Scale: fit to width or height
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
-- pan:disable click drag for panning
+- pan: Enable panning instead of click drag
+- disable_touch : Disable touch input during vnc session
 
 Advanced users:
 
@@ -57,26 +53,28 @@ Advanced users:
 For example:
 
 ``` shell
-./einkvnc 192.168.2.1 5902 --password abcde123 --contrast 2 
+./kobovnc 192.168.2.1 5902 --password abcde123 --contrast 2 
 ```
 NickelMenu entry, kills all programs then restarts at end using plato
 ```
 menu_item:main:VNCTest:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/einkvnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
+chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
-Place the einkvnc file onto your kobo ereader drive, then use the location of the file to run.
-eg /mnt/onboard/einkvnc. the . before the / means current directory. Rename the file to einkvnc instead of einkvncrelease or einkvncdebug if need be 
+Place the kobovnc file onto your kobo ereader drive, then use the location of the file to run.
+eg /mnt/onboard/kobovnc. the . before the / means current directory. Rename the file to kobovnc instead of kobovncrelease or kobovncdebug if need be 
 
-For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214).
+For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214). This isnt present on some devices, like Nia.
 
-Example of using ssh tunneling, you need NiLuJe's KoboStuff.
+Example of using ssh tunneling, you need NiLuJe's KoboStuff. To automate this youd need to set up ssh keys, 
+running ssh-keygen on Kobo and then copying .pub key to server. 
 https://www.mobileread.com/forums/showthread.php?t=254214
 ```
 ip link set lo up
 ip addr add 127.0.0.1/8 dev lo
 ifconfig lo 127.0.0.1 up
-ssh -L 15900:127.0.0.1:5900 -N user@vncserverip 
-einkvnc --host 127.0.0.1 --port 15900 #Open new shell for this command
+ssh -L 15900:127.0.0.1:5900 -N user@vncserverip
+ssh -L 15900:127.0.0.1:5900 -N user@vncserverip& # for automation
+kobovnc --host 127.0.0.1 --port 15900 #Open new shell for this command
 ```
 
 Rotate to landscape display using flag --rotate 2 or --rotate 0
@@ -111,7 +109,7 @@ Changelog:
   - zrle.rs 
 	- adding (false, 17..=127) to zrle decode fn,
 	- changing copy_indexed fn to return result,
-	- remove '&& format.depth <= 24' condition in decode fn for 32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 32. Forcing 8bpp allowed the oldest einkvnc to ignore this.
+	- remove '&& format.depth <= 24' condition in decode fn for 32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 32. Forcing 8bpp allowed the oldest kobovnc to ignore this.
   - main.rs:forcing the colour format to 8bpp, as the oldest version did, call vnc.request_update only at end of each frame, instead of each event, apparently this combined with debug mode can cause server to close connection.
 - Grayscale conversion using RGB instead of R
 - I have changed rotation default to use plato's function
