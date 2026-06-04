@@ -7,14 +7,14 @@ use std::time::Duration;
 use std::thread;
 use crate::unit::mm_to_px;
 use crate::input::{DeviceEvent, FingerStatus, ButtonCode, ButtonStatus};
-// use crate::view::Event;
+pub(crate) use crate::view::Event;
 use crate::device::CURRENT_DEVICE;
 use crate::geom::{Point, Vec2, Dir, DiagDir, Axis, nearest_segment_point, elbow};
-pub enum Event {
-    Device(DeviceEvent),
-    Gesture(GestureEvent),
-    //Keyboard(KeyboardEvent),
-}
+// pub enum Event {
+//     Device(DeviceEvent),
+//     Gesture(GestureEvent),
+//     //Keyboard(KeyboardEvent),
+// }
 pub const TAP_JITTER_MM: f32 = 6.0;
 pub const HOLD_JITTER_MM: f32 = 1.5;
 pub const HOLD_DELAY_SHORT: Duration = Duration::from_millis(666);

@@ -332,7 +332,8 @@ pub enum Encoding {
     Zrle,
     Cursor,
     DesktopSize,
-    rfbEncodingMono1bpp,
+    RfbEncodingMono1bpp,
+    RfbEncodingMono1bppZlib
     // extensions
 }
 
@@ -347,7 +348,8 @@ impl Message for Encoding {
             16 => Ok(Encoding::Zrle),
             -239 => Ok(Encoding::Cursor),
             -223 => Ok(Encoding::DesktopSize),
-            -752 => Ok(Encoding::rfbEncodingMono1bpp),
+            -752 => Ok(Encoding::RfbEncodingMono1bpp),
+            -753=> Ok(Encoding::RfbEncodingMono1bppZlib),
             n => Ok(Encoding::Unknown(n)),
         }
     }
@@ -362,7 +364,8 @@ impl Message for Encoding {
             Encoding::Cursor => -239,
             Encoding::DesktopSize => -223,
             Encoding::Unknown(n) => *n,
-            Encoding::rfbEncodingMono1bpp => -752,//0xFFFFFD10u32 as i32,
+            Encoding::RfbEncodingMono1bpp => -752,//0xFFFFFD10u32 as i32,
+            Encoding::RfbEncodingMono1bppZlib => -753,
         };
         writer.write_i32::<BigEndian>(encoding)?;
         Ok(())

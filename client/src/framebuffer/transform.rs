@@ -22,7 +22,7 @@ lazy_static! {
     };
 
     // Tileable blue noise matrix.
-    pub static ref DITHER_G2_DRIFTS: Vec<i8> = {//mnt/onboard/.adds/plato-0.9.45/resources/blue_noise-128.png
+    pub static ref DITHER_G2_DRIFTS: Vec<i8> = { //mnt/onboard/.adds/plato-0.9.45/
         let pixmap = Pixmap::from_png("resources/blue_noise-128.png").unwrap();
         // Map {0 .. 255} to {-128 .. 127}.
         pixmap.data().iter().map(|&v| {

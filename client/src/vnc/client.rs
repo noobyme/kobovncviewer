@@ -69,6 +69,7 @@ impl Event {
         }
 
         let mut zrle_decoder = zrle::Decoder::new();
+        let mut mono1bppz_inflater = flate2::Decompress::new(true); // true = zlib header expected on first call
         loop {
             let packet = match protocol::S2C::read_from(&mut stream) {
                 Ok(packet) => packet,
@@ -168,12 +169,12 @@ impl Event {
                             protocol::Encoding::DesktopSize => {
                                 send!(tx_events, Event::Resize(rectangle.width, rectangle.height))
                             }
-                            protocol::Encoding::rfbEncodingMono1bpp => {
+                            protocol::Encoding::RfbEncodingMono1bpp => {
                                 // let length = ((rectangle.width as usize)
                                 //     * (rectangle.height as usize)
                                 //     +7) / 8;
-                                let row_bytes = (rectangle.width as usize + 7) / 8;
-                                let length = row_bytes * rectangle.height as usize;
+                                // let row_bytes = (rectangle.width as usize + 7) / 8;
+                                // let length = row_bytes * rectangle.height as usize;
 
                                 let row_bytes = (rectangle.width as usize + 7) / 8;
                                 let length = row_bytes * rectangle.height as usize;
@@ -186,6 +187,59 @@ impl Event {
                                 stream.read_exact(&mut pixels)?;
                                 debug!("<- ...pixels");
                                 send!(tx_events, Event::PutPixels(dst, pixels))
+                            }
+                            protocol::Encoding::RfbEncodingMono1bppZlib => {
+                                let _dither_mode = stream.read_u8()?;
+                                let compressed_len = stream.read_u32::<BigEndian>()? as usize;
+                                let mut compressed = vec![0u8; compressed_len];
+                                stream.read_exact(&mut compressed)?;
+
+                                let stride = (rectangle.width as usize + 7) / 8;
+                                let decompressed_len = stride * rectangle.height as usize;
+                                let mut pixels = vec![0u8; decompressed_len];
+
+                                mono1bppz_inflater.decompress(
+                                    &compressed,
+                                    &mut pixels,
+                                    flate2::FlushDecompress::Sync,
+                                ).map_err(|_| Error::Unexpected("zlib decompression failed"))?;
+
+                                send!(tx_events, Event::PutPixels(dst, pixels))
+                                // Read dither-mode byte (always 0 = Floyd-Steinberg, but must consume it)
+                                // let _dither_mode = stream.read_u8()?;
+                                //
+                                // // Read the 4-byte compressed length prefix
+                                // let compressed_len = stream.read_u32::<BigEndian>()? as usize;
+                                // let mut compressed = vec![0u8; compressed_len];
+                                // stream.read_exact(&mut compressed)?;
+                                //
+                                // // Decompress — expected output is ceil(width/8)*height bytes
+                                // let stride = (rectangle.width as usize + 7) / 8;
+                                // let decompressed_len = stride * rectangle.height as usize;
+                                // let mut pixels = vec![0u8; decompressed_len];
+                                // let mut decoder = flate2::read::ZlibDecoder::new(&compressed[..]);
+                                // decoder.read_exact(&mut pixels)
+                                //     .map_err(|_| Error::Unexpected("zlib decompression failed"))?;
+                                //
+                                // debug!("<- ...compressed pixels");
+                                // send!(tx_events, Event::PutPixels(dst, pixels))
+
+                                //Claude
+                                // 4-byte compressed length prefix (same convention as Zrle)
+                                // let compressed_len = stream.read_u32::<BigEndian>()? as usize;
+                                // let mut compressed = vec![0u8; compressed_len];
+                                // stream.read_exact(&mut compressed)?;
+                                //
+                                // // Expected decompressed size: 1bpp = ceil(width / 8) * height bytes
+                                // let stride = (rectangle.width as usize + 7) / 8;
+                                // let decompressed_len = stride * rectangle.height as usize;
+                                // let mut pixels = Vec::with_capacity(decompressed_len);
+                                //
+                                // ZlibDecoder::new(&compressed[..])
+                                //     .read_to_end(&mut pixels)
+                                //     .map_err(|_| Error::Unexpected("zlib decompression failed"))?;
+                                //
+                                // send!(tx_events, Event::PutPixels(dst, pixels))
                             }
                             _ => return Err(Error::Unexpected("encoding")),
                         };

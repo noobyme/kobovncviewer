@@ -249,13 +249,13 @@ impl Decoder {
                             reader.align();
                         }
                     }
-                    (false, 17..=127) => {
-                        // Packed palette: one full byte per pixel = palette index (per RFB spec)
-                        for _ in 0..pixel_count {
-                            let index = reader.read_u8()?;
-                            copy_indexed(&palette, &mut pixels, bpp, index)?
-                        }
-                    }
+                    // (false, 17..=127) => {
+                    //     // Packed palette: one full byte per pixel = palette index (per RFB spec)
+                    //     for _ in 0..pixel_count {
+                    //         let index = reader.read_u8()?;
+                    //         copy_indexed(&palette, &mut pixels, bpp, index)?
+                    //     }
+                    // }
                     (true, 0) => {
                         // True Color RLE
                         let mut count = 0;

@@ -229,6 +229,22 @@ impl KoboFramebuffer2 {
 
 impl Framebuffer for KoboFramebuffer2 {
 
+    fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
+        let bpp = 1; // 1
+        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp
+            + (self.var_info.yoffset as isize + y as isize) * self.fix_info.line_length as isize;
+
+        debug_assert!(base_addr + luma_row.len() as isize <= self.frame_size as isize);
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                luma_row.as_ptr(),
+                self.frame.offset(base_addr) as *mut u8,
+                luma_row.len(),
+            );
+        }
+    }
+
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         let addr = (x + y * self.fix_info.line_length) as isize;
         let c = unsafe { *(self.frame.offset(addr) as *const u8) };
@@ -240,14 +256,14 @@ impl Framebuffer for KoboFramebuffer2 {
     }
 
 
-    fn set_pixel(&mut self, x: u32, y: u32, color: Color) {
-        let mut c = (self.transform)(x, y, color);
+    fn set_pixel(&mut self, x: u32, y: u32, mut color: Color) {
+        // let mut c = (self.transform)(x, y, color);
         if self.inverted {
-            c.invert();
+            color.invert();
         }
         let addr = (x + y * self.fix_info.line_length) as isize;
         let spot = unsafe { self.frame.offset(addr) as *mut u8 };
-        unsafe { *spot = c.gray() };
+        unsafe { *spot = color.gray() };
     }
 
 
@@ -395,6 +411,17 @@ impl Framebuffer for KoboFramebuffer2 {
 
     fn set_rotation(&mut self, n: i8) -> Result<(u32, u32), Error> {
         let delta = (self.rotation() - n).abs();
+        //3 - 1 2  /2 = 0 p to ip
+        //3 - 2 1  /2 = 1 p to l
+        //3 - 3 0  /2 = 0 p to il
+
+        //1 - 1 0 0
+        //1 - 2 -1 1
+        //1 - 3 -2 0
+
+        //0 - 1 -1 1
+        //0 - 2 -2 0
+        //0 - 3 -3 1
 
         if delta % 2 == 1 {
             mem::swap(&mut self.var_info.xres, &mut self.var_info.yres);
@@ -414,6 +441,7 @@ impl Framebuffer for KoboFramebuffer2 {
         }
 
         self.var_info.rotate = n as u32;
+        //convert negative to absolute
         Ok((self.var_info.xres, self.var_info.yres))
     }
 

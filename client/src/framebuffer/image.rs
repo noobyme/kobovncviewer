@@ -70,7 +70,11 @@ impl Pixmap {
 }
 
 impl Framebuffer for Pixmap {
+    fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
+    }
+
     #[inline]
+    
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         if self.data.is_empty() {
             return WHITE;

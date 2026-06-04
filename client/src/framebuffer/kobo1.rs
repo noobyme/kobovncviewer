@@ -162,6 +162,22 @@ impl KoboFramebuffer1 {
 
 impl Framebuffer for KoboFramebuffer1 {
 
+    fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
+        let bpp = self.bytes_per_pixel as isize; // 3 or 4
+        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp
+            + (self.var_info.yoffset as isize + y as isize) * self.fix_info.line_length as isize;
+
+        debug_assert!(base_addr + luma_row.len() as isize * bpp <= self.frame_size as isize);
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                luma_row.as_ptr(),
+                self.frame.offset(base_addr) as *mut u8,
+                luma_row.len(),
+            );
+        }
+    }
+
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         let rgb = (self.get_pixel_rgb)(self, x, y);
         return Color::Rgb(rgb[0], rgb[1], rgb[2])
@@ -169,8 +185,8 @@ impl Framebuffer for KoboFramebuffer1 {
     //8,16,32 bit rgb, 8bit returns only 1 value 3 times, 16 and 32 returns 3 diff values
 
     fn set_pixel(&mut self, x: u32, y: u32, color: Color) {
-        let c = (self.transform)(x, y, color);//dithering?
-        (self.set_pixel_rgb)(self, x, y, c.rgb());
+        // let c = (self.transform)(x, y, color);//dithering?
+        (self.set_pixel_rgb)(self, x, y, color.rgb());
     }
 
     fn set_blended_pixel(&mut self, x: u32, y: u32, color: Color, alpha: f32) {
