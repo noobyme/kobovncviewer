@@ -716,7 +716,8 @@ fn main() -> Result<(), Error> {
     //     table
     // };
 
-
+    fb.draw_rectangle(&device_fb_rect, WHITE);
+    fb.update(&device_fb_rect, UpdateMode::Full).ok();
 
     let mut finger_down_count = Instant::now();
     let finger_seconds = Duration::from_secs(2);
@@ -1013,6 +1014,7 @@ fn main() -> Result<(), Error> {
                                 // println!("gui");
                                 vnc = Some(new_vnc);
                                 fb.draw_rectangle(&device_fb_rect, WHITE);
+                                fb.update(&device_fb_rect, UpdateMode::Full).ok();
                                 break 'gui;
                             },
                             Err(error) => {
@@ -1036,9 +1038,6 @@ fn main() -> Result<(), Error> {
             }
         };
         // println!("mainloop");
-
-        fb.draw_rectangle(&device_fb_rect, WHITE);
-        fb.update(&device_fb_rect, UpdateMode::Full).ok();
 
         let event_params = event_handling::event_params::handle_events(&rx, scale_factor, width, height,
                                                                        fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
