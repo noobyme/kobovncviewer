@@ -243,7 +243,6 @@ impl Gui {
         //         rect.max.x,
         //         row_height + small_height + small_thickness];
 
-
         row_height = row_height + small_height + small_thickness;
 
         children.push(Box::new(Toggle_Button::new(
@@ -492,28 +491,28 @@ impl View for Gui {
             },
             Event::Submit(ViewId::GuiInputField1, ref text) => {
                 if !text.is_empty() {
-                    self.toggle_keyboard(false, None, hub, rq, context);
+                    // self.toggle_keyboard(false, None, hub, rq, context);
                           hub.send(Event::Submit(ViewId::GuiInputField1, text.clone())).ok();
                 }
                 true
             },
             Event::Submit(ViewId::GuiInputField2, ref text) => {
                 if !text.is_empty() {
-                    self.toggle_keyboard(false, None, hub, rq, context);;
+                    // self.toggle_keyboard(false, None, hub, rq, context);;
                     hub.send(Event::Submit(ViewId::GuiInputField2, text.clone())).ok();
                 }
                 true
             },
             Event::Submit(ViewId::GuiInputField3, ref text) => {
                 if !text.is_empty() {
-                    self.toggle_keyboard(false, None, hub, rq, context);
+                    // self.toggle_keyboard(false, None, hub, rq, context);
                     hub.send(Event::Submit(ViewId::GuiInputField3, text.clone())).ok();
                 }
                 true
             },
             Event::Submit(ViewId::GuiPasswordField1, ref text) => {
                 if !text.is_empty() {
-                    self.toggle_keyboard(false, None, hub, rq, context);
+                    // self.toggle_keyboard(false, None, hub, rq, context);
                     hub.send(Event::Submit(ViewId::GuiPasswordField1, text.clone())).ok();
                 }
                 true

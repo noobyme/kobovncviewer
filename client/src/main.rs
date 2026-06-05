@@ -274,6 +274,8 @@ fn main() -> Result<(), Error> {
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
 
+    std::process::Command::new("./scripts/wifi-enable.sh");
+
     let mut fb_red_index = 0;
     #[cfg(feature = "eink_device")]
     let mut fb: Box<dyn Framebuffer> = if CURRENT_DEVICE.mark() != 8 {
@@ -719,8 +721,6 @@ fn main() -> Result<(), Error> {
     let mut finger_down_count = Instant::now();
     let finger_seconds = Duration::from_secs(2);
 
-    fb.draw_rectangle(&device_fb_rect, WHITE);
-
     'running: loop {
         let time_at_sol = Instant::now();
         debug!("Loop start {:?}", time_at_sol);
@@ -1036,6 +1036,9 @@ fn main() -> Result<(), Error> {
             }
         };
         // println!("mainloop");
+
+        fb.draw_rectangle(&device_fb_rect, WHITE);
+        fb.update(&device_fb_rect, UpdateMode::Full).ok();
 
         let event_params = event_handling::event_params::handle_events(&rx, scale_factor, width, height,
                                                                        fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
