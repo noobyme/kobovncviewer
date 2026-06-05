@@ -1,22 +1,18 @@
+use std::ffi::CString;
+use std::fs::File;
+use std::io::Read;
 use std::mem::{self, MaybeUninit};
+use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::slice;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
-use std::io::Read;
-use std::fs::File;
-use std::sync::mpsc::{self, Sender, Receiver};
-use std::os::unix::io::AsRawFd;
-use std::ffi::CString;
 
-
-
-use fxhash::FxHashMap;
-use crate::framebuffer::Display;
-use crate::settings::ButtonScheme;
 use crate::device::CURRENT_DEVICE;
-use crate::geom::{Point, LinearDir};
-use anyhow::{Error, Context};
-
+use crate::geom::{LinearDir, Point};
+use crate::settings::ButtonScheme;
+use anyhow::{Context, Error};
+use fxhash::FxHashMap;
 
 // Event types
 pub const EV_SYN: u16 = 0x00;
@@ -46,7 +42,7 @@ pub const MSC_RAW_GSENSOR_LANDSCAPE_LEFT: i32 = 0x1a;
 
 // The indices of this clockwise ordering of the sensor values match the Forma's rotation values.
 pub const GYROSCOPE_ROTATIONS: [i32; 4] = [MSC_RAW_GSENSOR_LANDSCAPE_LEFT, MSC_RAW_GSENSOR_PORTRAIT_UP,
-    MSC_RAW_GSENSOR_LANDSCAPE_RIGHT, MSC_RAW_GSENSOR_PORTRAIT_DOWN];
+                                           MSC_RAW_GSENSOR_LANDSCAPE_RIGHT, MSC_RAW_GSENSOR_PORTRAIT_DOWN];
 
 pub const VAL_RELEASE: i32 = 0;
 pub const VAL_PRESS: i32 = 1;
@@ -234,14 +230,13 @@ pub fn raw_events(paths: Vec<String>) -> (Sender<InputEvent>, Receiver<InputEven
     (tx2, rx)
 }
 
-pub fn
-parse_raw_events(paths: &[String], tx: &Sender<InputEvent>) -> Result<(), Error> {
+pub fn parse_raw_events(paths: &[String], tx: &Sender<InputEvent>) -> Result<(), Error> {
     let mut files = Vec::new();
     let mut pfds = Vec::new();
 
     for path in paths.iter() {
         let file = File::open(path)
-            .with_context(|| format!("can't open input file {}", path))?;
+                        .with_context(|| format!("can't open input file {}", path))?;
         let fd = file.as_raw_fd();
         files.push(file);
         pfds.push(libc::pollfd {
@@ -332,9 +327,9 @@ fn parse_usb_events(tx: &Sender<DeviceEvent>) {
     }
 }
 
-pub fn device_events(rx: Receiver<InputEvent>, display: Display, button_scheme: ButtonScheme) -> Receiver<DeviceEvent> {
+pub fn device_events(rx: Receiver<InputEvent>, rotation: i8) -> Receiver<DeviceEvent> {
     let (ty, ry) = mpsc::channel();
-    thread::spawn(move || parse_device_events(&rx, &ty, display, button_scheme));
+    thread::spawn(move || parse_device_events(&rx, &ty, rotation));
     ry
 }
 
@@ -352,12 +347,12 @@ impl Default for TouchState {
     }
 }
 
-pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, display: Display, button_scheme: ButtonScheme) {
+pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, mut rotation: i8) {
     let mut id = 0;
     let mut last_activity = -60;
-    let Display { mut dims, mut rotation } = display;
-
-
+    //let Display { mut dims, mut rotation } = display;
+    let mut dims_x = CURRENT_DEVICE.dims.1;
+    let mut dims_y = CURRENT_DEVICE.dims.0;
     let mut fingers: FxHashMap<i32, Point> = FxHashMap::default();
     let mut packets: FxHashMap<i32, TouchState> = FxHashMap::default();
     let proto = CURRENT_DEVICE.proto;
@@ -376,11 +371,11 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
     let (mut mirror_x, mut mirror_y) = CURRENT_DEVICE.should_mirror_axes(rotation);
     if CURRENT_DEVICE.should_swap_axes(rotation) {
         mem::swap(&mut tc.x, &mut tc.y);
-
-
+        dims_x = CURRENT_DEVICE.dims.0;
+        dims_y = CURRENT_DEVICE.dims.1;
     }
 
-    let mut button_scheme = button_scheme;
+    let mut button_scheme= ButtonScheme::Natural;
 
     while let Ok(evt) = rx.recv() {
         if evt.kind == EV_ABS {
@@ -392,7 +387,7 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
             } else if evt.code == tc.x {
                 if let Some(state) = packets.get_mut(&id) {
                     state.position.x = if mirror_x {
-                        dims.0 as i32 - 1 - evt.value
+                        dims_x as i32 - 1 - evt.value
                     } else {
                         evt.value
                     };
@@ -400,7 +395,7 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
             } else if evt.code == tc.y {
                 if let Some(state) = packets.get_mut(&id) {
                     state.position.y = if mirror_y {
-                        dims.1 as i32 - 1 - evt.value
+                        dims_y as i32 - 1 - evt.value
                     } else {
                         evt.value
                     };
@@ -409,7 +404,7 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
                 if let Some(state) = packets.get_mut(&id) {
                     state.pressure = evt.value;
                     if proto == TouchProto::Single && CURRENT_DEVICE.mark() == 3 && state.pressure == 0 {
-                        state.position.x = dims.0 as i32 - 1 - state.position.x;
+                        state.position.x = dims_x as i32 - 1 - state.position.x;
                         mem::swap(&mut state.position.x, &mut state.position.y);
                     }
                 }
@@ -425,12 +420,12 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
             if proto == TouchProto::MultiB {
                 fingers.retain(|other_id, other_position| {
                     packets.contains_key(&other_id) ||
-                        ty.send(DeviceEvent::Finger {
-                            id: *other_id,
-                            time: seconds(evt.time),
-                            status: FingerStatus::Up,
-                            position: *other_position,
-                        }).is_err()
+                    ty.send(DeviceEvent::Finger {
+                        id: *other_id,
+                        time: seconds(evt.time),
+                        status: FingerStatus::Up,
+                        position: *other_position,
+                    }).is_err()
                 });
             }
 
@@ -472,31 +467,31 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
         } else if evt.kind == EV_KEY {
             if SLEEP_COVER.contains(&evt.code) {
                 if evt.value == VAL_PRESS {
-
+                    // println!("1A");
                     ty.send(DeviceEvent::CoverOn).ok();
                 } else if evt.value == VAL_RELEASE {
-
+                    // println!("1B");
                     ty.send(DeviceEvent::CoverOff).ok();
                 } else if evt.value == VAL_REPEAT {
-
+                    // println!("1C");
                     ty.send(DeviceEvent::CoverOn).ok();
                 }
             } else if evt.code == KEY_BUTTON_SCHEME {
                 if evt.value == VAL_PRESS {
-
+                    // println!("1D");
                     button_scheme = ButtonScheme::Inverted;
                 } else {
-
+                    // println!("1E");
                     button_scheme = ButtonScheme::Natural;
                 }
             } else if evt.code == KEY_ROTATE_DISPLAY {
-
+                // println!("1F");
                 let next_rotation = evt.value as i8;
                 if next_rotation != rotation {
                     let delta = (rotation - next_rotation).abs();
                     if delta % 2 == 1 {
                         mem::swap(&mut tc.x, &mut tc.y);
-                        mem::swap(&mut dims.0, &mut dims.1);
+                        mem::swap(&mut dims_x, &mut dims_y);
                     }
                     rotation = next_rotation;
                     let should_mirror = CURRENT_DEVICE.should_mirror_axes(rotation);
@@ -504,7 +499,7 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
                     mirror_y = should_mirror.1;
                 }
             } else if evt.code != BTN_TOUCH {
-
+                // println!("1G");
                 if let Some(button_status) = ButtonStatus::try_from_raw(evt.value) {
                     ty.send(DeviceEvent::Button {
                         time: seconds(evt.time),
@@ -514,10 +509,10 @@ pub fn parse_device_events(rx: &Receiver<InputEvent>, ty: &Sender<DeviceEvent>, 
                 }
             }
         } else if evt.kind == EV_MSC && evt.code == MSC_RAW {
-
+            // println!("1H");
             if evt.value >= MSC_RAW_GSENSOR_PORTRAIT_DOWN && evt.value <= MSC_RAW_GSENSOR_LANDSCAPE_LEFT {
                 let next_rotation = GYROSCOPE_ROTATIONS.iter().position(|&v| v == evt.value)
-                    .map(|i| CURRENT_DEVICE.transformed_gyroscope_rotation(i as i8));
+                                                       .map(|i| CURRENT_DEVICE.transformed_gyroscope_rotation(i as i8));
                 if let Some(next_rotation) = next_rotation {
                     ty.send(DeviceEvent::RotateScreen(next_rotation)).ok();
                 }

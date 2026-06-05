@@ -1,22 +1,16 @@
-pub(crate) mod linuxfb_sys;
+pub mod linuxfb_sys;
 mod ion_sys;
 mod mxcfb_sys;
 mod sunxi_sys;
 mod image;
-pub(crate) mod transform;
-pub(crate) mod kobo1;
-mod kobo2;
+pub mod transform;
+pub mod kobo1;
+pub mod kobo2;
 
-use std::fs::{File, OpenOptions};
-use std::{debug_assert, eprintln, format, println};
 use anyhow::Error;
 use crate::geom::{Point, Rectangle, surface_area, nearest_segment_point, lerp};
 use crate::geom::{CornerSpec, BorderSpec, ColorSource, Vec2};
 use crate::color::{Color, BLACK, WHITE};
-use crate::device::{Model, CURRENT_DEVICE};
-use crate::framebuffer::linuxfb_sys::{fix_screen_info, write_variable_screen_info};
-use crate::framebuffer::mxcfb_sys::{send_update_v1, send_update_v2, send_update_v3, wait_for_update_v1, wait_for_update_v2, HwtConUpdateData, MxcfbAltBufferDataV1, MxcfbAltBufferDataV2, MxcfbUpdateDataV1, MxcfbUpdateDataV2, MxcfbUpdateMarkerData, EPDC_FLAG_ENABLE_INVERSION, EPDC_FLAG_FORCE_MONOCHROME, EPDC_FLAG_USE_AAD, EPDC_FLAG_USE_DITHERING_ORDERED, EPDC_FLAG_USE_DITHERING_PASSTHROUGH, EPDC_FLAG_USE_DITHERING_Y1, HWTCON_FLAG_FORCE_A2_OUTPUT, HWTCON_FLAG_USE_DITHERING, HWTCON_FLAG_USE_DITHERING_Y8_Y1_S, HWTCON_FLAG_USE_DITHERING_Y8_Y4_S, HWTCON_WAVEFORM_MODE_A2, HWTCON_WAVEFORM_MODE_GCC16, HWTCON_WAVEFORM_MODE_GCK16, HWTCON_WAVEFORM_MODE_GLKW16, HWTCON_WAVEFORM_MODE_GLR16, HWTCON_WAVEFORM_MODE_GLRC16, NTX_WFM_MODE_A2, NTX_WFM_MODE_DU, NTX_WFM_MODE_GC16, NTX_WFM_MODE_GCK16, NTX_WFM_MODE_GLD16, NTX_WFM_MODE_GLKW16, NTX_WFM_MODE_GLR16, TEMP_USE_AMBIENT, UPDATE_MODE_FULL, UPDATE_MODE_PARTIAL, WAVEFORM_MODE_AUTO};
-use crate::framebuffer::transform::{transform_dither_g16, transform_identity};
 use crate::vec2;
 use crate::pt;
 use crate::rect;

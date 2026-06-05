@@ -19,7 +19,7 @@ pub struct event_params {
 impl event_params {
     pub fn handle_events(rx: &Receiver<Event>, scale_factor: f32, width: u16, height: u16,
                          fb_width: u32, fb_height: u32, x_padding: u32, y_padding: u32, mut x_offset: u32, mut y_offset: u32,
-                         vnc: &mut Option<Client>, mut finger_down_count: Instant, finger_seconds: Duration, fb: &mut Box<dyn Framebuffer>,
+                         vnc: &mut Client, mut finger_down_count: Instant, finger_seconds: Duration, fb: &mut Box<dyn Framebuffer>,
                          panning: bool, mut has_drawn_once: bool, scale: bool, long_tap: bool, gui_enabled:bool, disable_touch:bool) -> event_params {
         if let Ok(evt) = rx.try_recv() {
             match evt {
@@ -40,7 +40,7 @@ impl event_params {
                                                 if long_tap {
                                                     if finger_down_count.elapsed() > finger_seconds
                                                     {
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x04,
                                                             (((position.x as f32
                                                                 - x_padding as f32)
@@ -54,7 +54,7 @@ impl event_params {
                                                                 .clamp(0, height as u16),
                                                         )
                                                             .unwrap();
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x00,
                                                             (((position.x as f32
                                                                 - x_padding as f32)
@@ -71,7 +71,7 @@ impl event_params {
                                                         //dbg!(((position.x as f32-x_padding as f32) / scale_factor) as u16, ((position.y as f32-y_padding as f32) / scale_factor) as u16);
                                                     }
                                                 } else {
-                                                     vnc.as_mut().unwrap().send_pointer_event(
+                                                    vnc.send_pointer_event(
                                                         0x00,
                                                         (((position.x as f32 - x_padding as f32)
                                                             / scale_factor)
@@ -88,7 +88,7 @@ impl event_params {
                                             } else if !disable_touch {
                                                 if long_tap {
                                                     if finger_down_count.elapsed() > finger_seconds {
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x04,
                                                             ((position.x as i16 - x_padding as i16
                                                                 + x_offset as i16)
@@ -100,7 +100,7 @@ impl event_params {
                                                                 .clamp(0, height as u16),
                                                         )
                                                             .unwrap();
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x00,
                                                             ((position.x as i16 - x_padding as i16
                                                                 + x_offset as i16)
@@ -112,12 +112,11 @@ impl event_params {
                                                                 .clamp(0, height as u16),
                                                         )
                                                             .unwrap();
-                                                        //dbg!(position.x as u16-x_padding as u16, position.y as u16-y_padding as u16);
-
                                                     }
+                                                    //dbg!(position.x as u16-x_padding as u16, position.y as u16-y_padding as u16);
                                                 } else {
                                                     if panning {
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x01,
                                                             ((position.x as i16 - x_padding as i16
                                                                 + x_offset as i16)
@@ -129,7 +128,7 @@ impl event_params {
                                                                 .clamp(0, height as u16),
                                                         )
                                                             .unwrap();
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x00,
                                                             ((position.x as i16 - x_padding as i16
                                                                 + x_offset as i16)
@@ -143,7 +142,7 @@ impl event_params {
                                                             .unwrap();
                                                         //dbg!(position.x as u16-x_padding as u16, position.y as u16-y_padding as u16);
                                                     } else {
-                                                         vnc.as_mut().unwrap().send_pointer_event(
+                                                        vnc.send_pointer_event(
                                                             0x00,
                                                             ((position.x as i16 - x_padding as i16
                                                                 + x_offset as i16)
@@ -165,8 +164,8 @@ impl event_params {
                                                     return event_params {
                                                         has_drawn_once,
                                                         finger_down_count,
-                                                        exit_to_nickel: if gui_enabled {false} else {true},
-                                                        exit_to_gui: if gui_enabled {true} else {false},
+                                                        exit_to_nickel: false,
+                                                        exit_to_gui: true,
                                                         x_offset,
                                                         y_offset,
                                                     }
@@ -174,8 +173,8 @@ impl event_params {
                                                     return event_params {
                                                         has_drawn_once,
                                                         finger_down_count,
-                                                        exit_to_nickel: if gui_enabled {false} else {true},
-                                                        exit_to_gui: if gui_enabled {true} else {false},
+                                                        exit_to_nickel: true,
+                                                        exit_to_gui: false,
                                                         x_offset,
                                                         y_offset,
                                                     }
@@ -187,7 +186,7 @@ impl event_params {
                                                 if panning {
                                                     finger_down_count = Instant::now();
                                                 } else {
-                                                     vnc.as_mut().unwrap().send_pointer_event(
+                                                    vnc.send_pointer_event(
                                                         0x01,
                                                         (((position.x as f32 - x_padding as f32)
                                                             / scale_factor)
@@ -208,7 +207,7 @@ impl event_params {
                                                 if panning {
                                                     finger_down_count = Instant::now();
                                                 } else {
-                                                     vnc.as_mut().unwrap().send_pointer_event(
+                                                    vnc.send_pointer_event(
                                                         0x01,
                                                         ((position.x as i16 - x_padding as i16
                                                             + x_offset as i16)
@@ -224,14 +223,13 @@ impl event_params {
                                                     //dbg!(position.x as u16-x_padding as u16,position.y as u16-y_padding as u16);
                                                 }
                                             }
-                                            finger_down_count = Instant::now();
                                         }
                                         FingerStatus::Motion => {
                                             if scale && !disable_touch {
                                                 if panning {
 
                                                 } else {
-                                                     vnc.as_mut().unwrap().send_pointer_event(
+                                                    vnc.send_pointer_event(
                                                         0x01,
                                                         (((position.x as f32 - x_padding as f32)
                                                             / scale_factor)
@@ -251,7 +249,7 @@ impl event_params {
                                                 if panning {
 
                                                 } else {
-                                                     vnc.as_mut().unwrap().send_pointer_event(
+                                                    vnc.send_pointer_event(
                                                         0x01,
                                                         ((position.x as i16 - x_padding as i16
                                                             + x_offset as i16)
@@ -284,8 +282,8 @@ impl event_params {
                             return event_params {
                                 has_drawn_once,
                                 finger_down_count,
-                                exit_to_nickel: if gui_enabled {false} else {true},
-                                exit_to_gui: if gui_enabled {true} else {false},
+                                exit_to_nickel: true,
+                                exit_to_gui: false,
                                 x_offset,
                                 y_offset,
                             }
@@ -296,8 +294,8 @@ impl event_params {
                             return event_params {
                                 has_drawn_once,
                                 finger_down_count,
-                                exit_to_nickel: if gui_enabled {false} else {true},
-                                exit_to_gui: if gui_enabled {true} else {false},
+                                exit_to_nickel: true,
+                                exit_to_gui: false,
                                 x_offset,
                                 y_offset,
                             }
@@ -314,7 +312,7 @@ impl event_params {
                     if panning {
                         match ge {
                             GestureEvent::Swipe { dir, .. } => {
-                                // dbg!(x_offset, y_offset, dir);
+                                dbg!(x_offset, y_offset, dir);
                                 match dir {
                                     Dir::North => {
                                         if height > fb_height as u16 {
@@ -362,7 +360,7 @@ impl event_params {
                                         }
                                     }
                                 }
-                                if  vnc.as_mut().unwrap()
+                                if vnc
                                     .request_update(
                                         Rect {
                                             left: 0 + x_offset as u16,
@@ -384,7 +382,6 @@ impl event_params {
                         }
                     }
                 }
-                _ => {},
             };
         }
         event_params {

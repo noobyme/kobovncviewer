@@ -1,4 +1,4 @@
-mod protocol;
+    mod protocol;
 mod zrle;
 
 pub mod client;

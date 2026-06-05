@@ -17,13 +17,10 @@ mod settings;
 mod unit;
 mod vnc;
 
-mod font;
-mod view;
-mod context;
-mod helpers;
-mod document;
 mod event_handling;
 mod scaling;
+
+use crate::scaling::scale_parameters;
 
 use crate::framebuffer::transform::transform_dither_g2;
 use crate::framebuffer::{Framebuffer, KoboFramebuffer1, KoboFramebuffer2, Pixmap, UpdateMode};
@@ -50,25 +47,7 @@ use std::path::Path;
 use std::process::Command;
 use std::slice;
 use std::sync::mpsc;
-
-use crate::context::Context;
-use crate::font::Fonts;
-use crate::geom::{DiagDir, Region};
-use crate::gesture::{gesture_events, GestureEvent};
-use crate::helpers::{load_toml, save_toml};
-use crate::scaling::scale_parameters;
-use crate::settings::{ButtonScheme, RotationLock, Settings, SETTINGS_PATH, };
-use crate::view::common::{locate, locate_by_id, overlapping_rectangle};
-use crate::view::common::{toggle_input_history_menu, toggle_keyboard_layout_menu};
-use crate::view::gui::Gui;
-use crate::view::input_field::InputField;
-use crate::view::menu::{Menu, MenuKind};
-use crate::view::{gui, EntryId, EntryKind, Event, RenderData, RenderQueue, UpdateData, View, ViewId};
-use crate::view::{handle_event, process_render_queue, wait_for_all};
 use anyhow::{format_err, Context as ResultExt, Error};
-use chrono::Local;
-use std::collections::VecDeque;
-use std::env;
 
 const FB_DEVICE: &str = "/dev/fb0";
 
@@ -91,6 +70,21 @@ const POWER_INPUTS: [&str; 3] = [
     "/dev/input/by-path/platform-bd71828-pwrkey.4.auto-event",
     "/dev/input/by-path/platform-bd71828-pwrkey-event",
 ];
+
+// Build once at startup — 2KB, permanently L1-resident
+static EXPAND_1BPP_8: [[u8; 8]; 256] = {
+    let mut table = [[0u8; 8]; 256];
+    let mut byte = 0usize;
+    while byte < 256 {
+        let mut bit = 0;
+        while bit < 8 {
+            table[byte][bit] = if (byte >> (7 - bit)) & 1 == 1 { 0xFF } else { 0x00 };
+            bit += 1;
+        }
+        byte += 1;
+    }
+    table
+};
 
 #[repr(align(256))]
 pub struct PostProcBin {
@@ -219,12 +213,6 @@ fn main() -> Result<(), Error> {
                 .long("disable_touch")
         )
         .arg(
-            Arg::new("gui")
-                .help("launch gui")
-                .long("gui")
-                .short('g')
-        )
-        .arg(
             Arg::new("enc")
                 .help("Choose custom 1bpp encoding")
                 .long("encoding")
@@ -242,38 +230,83 @@ fn main() -> Result<(), Error> {
                 .help("swap red and blue index")
                 .long("invert_red_shift")
         )
-        .get_matches();
+            .get_matches();
 
-    // let mut host = matches.value_of("host");
-    let mut host: Option<String> = matches.value_of("host").map(str::to_string);
-    let mut port = value_t!(matches.value_of("port"), u16).unwrap_or(5900);     // String
-    let mut username = matches.value_of("username").map(str::to_string);      // Option<String>
-    let mut password = matches.value_of("password").map(str::to_string);
-    let mut contrast_exp = value_t!(matches.value_of("contrast_exp"), f32).unwrap_or(1.0);
-    let mut contrast_gray_point = value_t!(matches.value_of("gray"), f32).unwrap_or(224.0);
-    let mut white_cutoff = value_t!(matches.value_of("white"), u8).unwrap_or(255);
-    let mut exclusive = matches.is_present("exclusive");
-    let mut rotate = value_t!(matches.value_of("rotation"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
-    let mut scale = matches.is_present("scale");
-    let mut long_tap = matches.is_present("long_tap");
-    let mut full_update = value_t!(matches.value_of("fu"), i8).unwrap_or(5);
-    let mut partial_update = value_t!(matches.value_of("pu"), i8).unwrap_or(4);
-    let mut refresh = value_t!(matches.value_of("fr"), u32).unwrap_or(500);
-    let mut fps = value_t!(matches.value_of("fps"), f32).unwrap_or(30.0);
+    let host = matches.value_of("host").unwrap();
+    let port = value_t!(matches.value_of("port"), u16).unwrap_or(5900);
+    let username = matches.value_of("username");
+    let password = matches.value_of("password");
+    let contrast_exp = value_t!(matches.value_of("contrast_exp"), f32).unwrap_or(1.0);
+    let contrast_gray_point = value_t!(matches.value_of("gray"), f32).unwrap_or(224.0);
+    let white_cutoff = value_t!(matches.value_of("white"), u8).unwrap_or(255);
+    let exclusive = matches.is_present("exclusive");
+    let rotate = value_t!(matches.value_of("rotation"), i8).unwrap_or(CURRENT_DEVICE.startup_rotation());
+    let scale = matches.is_present("scale");
+    let long_tap = matches.is_present("long_tap");
+    let full_update = value_t!(matches.value_of("fu"), i8).unwrap_or(5);
+    let partial_update = value_t!(matches.value_of("pu"), i8).unwrap_or(4);
+    let refresh = value_t!(matches.value_of("fr"), u32).unwrap_or(500);
+    let fps = value_t!(matches.value_of("fps"), f32).unwrap_or(30.0);
     let invert_red_shift = matches.is_present("irs");
 
     let blue_noise = matches.is_present("bn");
-    let mut panning = matches.is_present("pan");
-    let mut disable_touch = matches.is_present("disable_touch");
+    let panning = matches.is_present("pan");
+    let disable_touch = matches.is_present("disable_touch");
     let colour_format = value_t!(matches.value_of("cf"), u8).unwrap_or(0);
 
-    let mut gui_enabled = matches.is_present("gui");
-    let mut gui_active = gui_enabled.clone();
-    let mut encoding = matches.is_present("enc");
+    let encoding =  matches.is_present("enc");
 
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
 
+    info!("connecting to {}:{}", host, port);
+    let stream = match std::net::TcpStream::connect((host, port)) {
+        Ok(stream) => stream,
+        Err(error) => {
+            error!("cannot connect to {}:{}: {}", host, port, error);
+            std::process::exit(1)
+        }
+    };
+
+    let mut vnc = match Client::from_tcp_stream(stream, !exclusive, |methods| {
+        debug!("available authentication methods: {:?}", methods);
+        for method in methods {
+            match method {
+                client::AuthMethod::None => return Some(client::AuthChoice::None),
+                client::AuthMethod::Password => {
+                    return match password {
+                        None => None,
+                        Some(ref password) => {
+                            let mut key = [0; 8];
+                            for (i, byte) in password.bytes().enumerate() {
+                                if i == 8 {
+                                    break;
+                                }
+                                key[i] = byte
+                            }
+                            Some(client::AuthChoice::Password(key))
+                        }
+                    }
+                }
+                client::AuthMethod::AppleRemoteDesktop => match (username, password) {
+                    (Some(username), Some(password)) => {
+                        return Some(client::AuthChoice::AppleRemoteDesktop(
+                            username.to_owned(),
+                            password.to_owned(),
+                        ))
+                    }
+                    _ => (),
+                },
+            }
+        }
+        None
+    }) {
+        Ok(vnc) => vnc,
+        Err(error) => {
+            error!("cannot initialize VNC session: {}", error);
+            std::process::exit(1)
+        }
+    };
     let mut fb_red_index = 0;
     #[cfg(feature = "eink_device")]
     let mut fb: Box<dyn Framebuffer> = if CURRENT_DEVICE.mark() != 8 {
@@ -363,7 +396,25 @@ fn main() -> Result<(), Error> {
         blue_shift: if fb_red_index == 0 { 16 } else { 0 },
     };
 
+    let (width, height) = vnc.size();
+    info!(
+        "connected to \"{}\", {}x{} framebuffer",
+        vnc.name(),
+        width,
+        height
+    );
+
     let mut SD_COLOR_FORMAT: PixelFormat = PixelFormat {
+        // bits_per_pixel: bits_format,
+        // depth: depth,
+        // big_endian: false,
+        // true_colour: true,
+        // red_max: red_max,
+        // green_max: green_max,
+        // blue_max: blue_max,
+        // red_shift:red_shift,       //fb_red_index*8,
+        // green_shift:green_shift,  //8,
+        // blue_shift:blue_shift,   //(2-fb_red_index)*8,
         bits_per_pixel: 8,
         depth: 6,
         big_endian: false,
@@ -387,126 +438,73 @@ fn main() -> Result<(), Error> {
         _ => {}
     };
 
-    let mut stream;
-    let mut vnc: Option<Client> = None;;
-
-    let mut width = 0;
-    let mut height = 0;
     let mut vnc_format;
 
-    if !gui_enabled {
-        info!("connecting to {}:{}", host.as_deref().unwrap_or(""), port);
-        stream = match std::net::TcpStream::connect((host.as_deref().unwrap_or(""), port)) {
-            Ok(stream) => stream,
-            Err(error) => {
-                error!("cannot connect to {}:{}: {}", host.as_deref().unwrap_or(""), port, error);
-                std::process::exit(1)
-            }
-        };
 
-        vnc = Some(match Client::from_tcp_stream(stream, !exclusive, |methods| {
-            debug!("available authentication methods: {:?}", methods);
-            for method in methods {
-                match method {
-                    client::AuthMethod::None => return Some(client::AuthChoice::None),
-                    client::AuthMethod::Password => {
-                        return match password {
-                            None => None,
-                            Some(ref password) => {
-                                let mut key = [0; 8];
-                                for (i, byte) in password.bytes().enumerate() {
-                                    if i == 8 {
-                                        break;
-                                    }
-                                    key[i] = byte
-                                }
-                                Some(client::AuthChoice::Password(key))
-                            }
-                        }
-                    }
-                    client::AuthMethod::AppleRemoteDesktop => match (username.as_deref(), password.as_deref()) {
-                        (Some(username), Some(password)) => {
-                            return Some(client::AuthChoice::AppleRemoteDesktop(
-                                username.to_owned(),
-                                password.to_owned(),
-                            ))
-                        }
-                        _ => (),
-                    },
-                }
-            }
-            None
-        }) {
-            Ok(vnc) => vnc,
-            Err(error) => {
-                error!("cannot initialize VNC session: {}", error);
-                std::process::exit(1)
-            }
-        });
-
-        (width, height) = vnc.as_mut().unwrap().size();
-        info!(
-            "connected to \"{}\", {}x{} framebuffer",
-            vnc.as_mut().unwrap().name(),
-            width,
-            height
-        );
-        vnc_format = vnc.as_mut().unwrap().format();
+    if encoding {
+        vnc_format = vnc.format();
         info!("received {:?}", vnc_format);
-        vnc.as_mut().unwrap().set_format(SD_COLOR_FORMAT).unwrap();
+        vnc.set_encodings(&[Encoding::RfbEncodingMono1bppZlib]).unwrap()
+    } else {
+        vnc_format = vnc.format();
+        info!("received {:?}", vnc_format);
+        vnc.set_format(SD_COLOR_FORMAT).unwrap();
         info!("request {:?}", SD_COLOR_FORMAT);
-        vnc_format = vnc.as_mut().unwrap().format();
+        vnc_format = vnc.format();
         info!("received {:?}", vnc_format);
+        vnc.set_encodings(&[Encoding::Zrle]).unwrap()
+    }
 
-        if encoding {
-            vnc.as_mut().unwrap().set_encodings(&[Encoding::RfbEncodingMono1bppZlib]).unwrap()
-        } else {
-            vnc.as_mut().unwrap().set_encodings(&[Encoding::Zrle]).unwrap()
-        }
+    // vnc.request_update(
+    //     Rect {
+    //         left: 0,
+    //         top: 0,
+    //         width,
+    //         height,
+    //     },
+    //     false,
+    // )
+    // .unwrap();
 
-        if scale {
-            if vnc.as_mut().unwrap()
-                .request_update(
-                    Rect {
-                        left: 0,
-                        top: 0,
-                        width,
-                        height,
-                    },
-                    false,
-                )
-                .is_err()
-            {
-                error!("server disconnected");
-            }
-        } else {
-            if vnc.as_mut().unwrap()
-                .request_update(
-                    Rect {
-                        left: 0,
-                        top: 0,
-                        width: if width < fb.width() as u16 {
-                            width
-                        } else {
-                            fb.width() as u16
-                        },
-                        height: if height < fb.height() as u16 {
-                            height
-                        } else {
-                            fb.height() as u16
-                        },
-                    },
-                    false,
-                )
-                .is_err()
-            {
-                error!("server disconnected");
-            }
+    if scale {
+        if vnc
+            .request_update(
+                Rect {
+                    left: 0,
+                    top: 0,
+                    width,
+                    height,
+                },
+                false,
+            )
+            .is_err()
+        {
+            error!("server disconnected");
         }
     } else {
-
-    };
-
+        if vnc
+            .request_update(
+                Rect {
+                    left: 0,
+                    top: 0,
+                    width: if width < fb.width() as u16 {
+                        width
+                    } else {
+                        fb.width() as u16
+                    },
+                    height: if height < fb.height() as u16 {
+                        height
+                    } else {
+                        fb.height() as u16
+                    },
+                },
+                false,
+            )
+            .is_err()
+        {
+            error!("server disconnected");
+        }
+    }
 
     #[cfg(feature = "eink_device")]
     info!(
@@ -585,29 +583,9 @@ fn main() -> Result<(), Error> {
             break;
         }
     }
-    fn build_context(fb: Box<dyn Framebuffer>) -> Result<Context, Error> {
-        let path = Path::new(SETTINGS_PATH);
-        let mut settings = if path.exists() {
-            load_toml::<Settings, _>(path).context("can't load settings")?
-        } else {
-            Default::default()
-        };
-
-        let fonts = Fonts::load().context("can't load fonts")?;
-
-        Ok(Context::new(fb, settings, fonts))
-    }
-
-    let mut fb_gui: Box<dyn Framebuffer> = if CURRENT_DEVICE.mark() != 8 {
-        Box::new(KoboFramebuffer1::new(FB_DEVICE).context("can't create framebuffer")?)
-    } else {
-        Box::new(KoboFramebuffer2::new(FB_DEVICE).context("can't create framebuffer")?)
-    };//new fb
-    let mut context = build_context(fb_gui).context("can't build context")?; //new context?
-
     // println!("{:?}",paths);
     let (raw_sender, raw_receiver) = raw_events(paths);
-    let touch_screen = gesture_events(device_events(raw_receiver, context.display, context.settings.button_scheme));
+    let touch_screen = gesture_events(device_events(raw_receiver, rotate));
     //let usb_port = usb_events();
 
     let (tx, rx) = mpsc::channel();
@@ -619,62 +597,56 @@ fn main() -> Result<(), Error> {
         }
     });
 
-    // let mut fit_width: bool = false;
-    // let mut fit_height: bool = false;
-    let mut scale_factor: f32 = 1.0;
-    //dbg!(fb.width(),width,fb.height(),height);
+    // dbg!(fb.width(),width,fb.height(),height);
 
+    let mut scale_factor: f32 = 1.0;
     let mut x_padding = 0;
     let mut y_padding = 0;
 
     let mut x_offset: u32 = 0;
     let mut y_offset: u32 = 0;
 
-    let mut device_fb_rect= rect!(0,0,0,0);
-    let mut _cropped_vnc_fb_rect = rect!(0,0,0,0);
-    let mut _original_vnc_fb_rect= rect!(0,0,0,0);
-    let mut scaled_fb_rect= rect!(0,0,0,0);
+    let mut left_x_truncate = 0;
+    let mut top_y_truncate = 0;
+    let mut right_x_truncate = 0;
+    let mut bottom_y_truncate = 0;
 
-    if !gui_enabled {
-        device_fb_rect = rect![0, 0, fb.width() as i32, fb.height() as i32];
-        _cropped_vnc_fb_rect = rect![
-            0 + x_padding as i32,
-            0 + y_padding as i32,
-            fb.width() as i32 + x_padding as i32,
-            fb.height() as i32 + y_padding as i32
-        ];
-        _original_vnc_fb_rect = rect![0, 0, width as i32, height as i32];
-        scaled_fb_rect = rect![
-            0 + x_padding as i32,
-            0 + y_padding as i32,
-            width as i32 + x_padding as i32,
-            height as i32 + y_padding as i32
-        ];
+    let mut device_fb_rect = rect![0, 0, fb.width() as i32, fb.height() as i32];
+    let mut cropped_vnc_fb_rect = rect![
+        0 + x_padding as i32,
+        0 + y_padding as i32,
+        fb.width() as i32 + x_padding as i32,
+        fb.height() as i32 + y_padding as i32
+    ];
+    let mut original_vnc_fb_rect = rect![0, 0, width as i32, height as i32];
+    let mut scaled_fb_rect = rect![
+        0 + x_padding as i32,
+        0 + y_padding as i32,
+        width as i32 + x_padding as i32,
+        height as i32 + y_padding as i32
+    ];
 
-        if scale {
-            let scale_parameters = scale_parameters::new(true, width, height, fb.width(), fb.height(), x_offset, y_offset);
-            scale_factor = scale_parameters.scale_factor;
-            x_padding = scale_parameters.x_padding;
-            y_padding = scale_parameters.y_padding;
-            device_fb_rect = scale_parameters.device_fb_rect;
-            _cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
-            _original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
-            scaled_fb_rect = scale_parameters.scaled_fb_rect;
-        } else {
-            let scale_parameters = scale_parameters::new(false, width, height, fb.width(), fb.height(), x_offset, y_offset);
-            scale_factor = scale_parameters.scale_factor;
-            x_padding = scale_parameters.x_padding;
-            y_padding = scale_parameters.y_padding;
-            // device_fb_rect = scale_parameters.device_fb_rect;
-            // cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
-            // original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
-            // scaled_fb_rect = scale_parameters.scaled_fb_rect;
-        }
+    if scale {
+        let scale_parameters = scale_parameters::new(true, width, height, fb.width(), fb.height() ,x_offset ,y_offset);
+        scale_factor = scale_parameters.scale_factor;
+        x_padding = scale_parameters.x_padding;
+        y_padding = scale_parameters.y_padding;
+        device_fb_rect = scale_parameters.device_fb_rect;
+        cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
+        original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
+        scaled_fb_rect = scale_parameters.scaled_fb_rect;
+    } else {
+        let scale_parameters = scale_parameters::new(false, width, height, fb.width(), fb.height() ,x_offset ,y_offset);
+        scale_factor = scale_parameters.scale_factor;
+        x_padding = scale_parameters.x_padding;
+        y_padding = scale_parameters.y_padding;
+        device_fb_rect = scale_parameters.device_fb_rect;
+        cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
+        original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
+        scaled_fb_rect = scale_parameters.scaled_fb_rect;
     }
 
-    //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
-
-    let mut full_update_mode = match full_update {
+    let full_update_mode = match full_update {
         1 => UpdateMode::Fast,     //a2
         2 => UpdateMode::FastMono, //a2
         3 => UpdateMode::Gui,      //gc16 full
@@ -682,7 +654,7 @@ fn main() -> Result<(), Error> {
         5 => UpdateMode::Full,
         _ => UpdateMode::Full, //fast and fastmono are the same...
     };
-    let mut partial_update_mode = match partial_update {
+    let partial_update_mode = match partial_update {
         1 => UpdateMode::Fast,     //a2
         2 => UpdateMode::FastMono, //a2
         3 => UpdateMode::Gui,      //gc16 full
@@ -699,364 +671,40 @@ fn main() -> Result<(), Error> {
         false => fb.set_monochrome(false),
     };
 
-    // Build once at startup — 2KB, permanently L1-resident
-    // static EXPAND_1BPP: [[u8; 8]; 256] = {
-    //     let mut table = [[0u8; 8]; 256];
-    //     let mut byte = 0usize;
-    //     while byte < 256 {
-    //         let mut bit = 0;
-    //         while bit < 8 {
-    //             table[byte][bit] = if (byte >> (7 - bit)) & 1 == 1 { 0xFF } else { 0x00 };
-    //             bit += 1;
-    //         }
-    //         byte += 1;
-    //     }
-    //     table
-    // };
-
-
-
     let mut finger_down_count = Instant::now();
     let finger_seconds = Duration::from_secs(2);
 
     fb.draw_rectangle(&device_fb_rect, WHITE);
+    fb.update(&device_fb_rect, UpdateMode::Full).ok();
+
+    let mut counter = 0;
+    let mut cumulative_time = 0;
+    let mut cumulative_pixels = 0;
 
     'running: loop {
+
         let time_at_sol = Instant::now();
         debug!("Loop start {:?}", time_at_sol);
-        //dbg!(left_x_truncate,right_x_truncate,top_y_truncate,bottom_y_truncate);
-        'gui: while gui_active {
-
-            let mut inactive_since = Instant::now();
-
-            // let initial_rotation = CURRENT_DEVICE.transformed_rotation(fb.rotation());
-            // let startup_rotation = CURRENT_DEVICE.startup_rotation();
-            // if !CURRENT_DEVICE.has_gyroscope() && initial_rotation != startup_rotation {
-            //     fb.set_rotation(startup_rotation).ok();
-            // }
-
-            context.load_keyboard_layouts(); //load keyboard, require this one
-
-            let mut rq = RenderQueue::new();
-
-            let mut updating = Vec::new();
-            let current_dir = env::current_dir()?;
-
-            println!("The framebuffer resolution is {} by {}.", context.fb.rect().width(),
-                     context.fb.rect().height());
-
-            let mut bus = VecDeque::with_capacity(4);
-
-            let mut view: Box<dyn View> = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
-                                                            &host.as_deref(), &port, &username, &password,
-                                                            encoding, scale,
-                                                            &mut context, panning, disable_touch));
-            process_render_queue(view.as_ref(), &mut rq, &mut context, &mut updating);
-
-            while let Ok(evt) = rx.recv() {
-                match evt {
-                    Event::ToggleNear(ViewId::KeyboardLayoutMenu, rect) => {
-                        toggle_keyboard_layout_menu(view.as_mut(), rect, Some(true), &mut rq, &mut context);
-                    },
-                    Event::Close(id) => {
-                        if let Some(index) = locate_by_id(view.as_ref(), id) {
-                            let rect = overlapping_rectangle(view.child(index));
-                            rq.add(RenderData::expose(rect, UpdateMode::Gui));
-                            view.children_mut().remove(index);
-                            // view.toggle_keyboard(false, None, hub, rq, context);
-                        }
-                    },
-                    Event::ToggleInputHistoryMenu(id, rect) => {
-                        toggle_input_history_menu(view.as_mut(), id, rect, None, &mut rq, &mut context);
-                    },
-                    Event::Submit(ViewId::GuiInputField1, ref text) => {
-                        if !text.is_empty() {
-                            // view.toggle_keyboard(false, None, hub, rq, context);
-                            // self.define(Some(text), rq, context);
-                            host = Some(text.clone());
-                        }
-                    },
-                    Event::Submit(ViewId::GuiInputField2, ref text) => {
-                        if !text.is_empty() {
-                            // view.toggle_keyboard(false, None, hub, rq, context);
-                            // self.define(Some(text), rq, context);
-                            port = text.parse::<u16>().unwrap();
-                        }
-                    },
-                    Event::Submit(ViewId::GuiInputField3, ref text) => {
-                        if !text.is_empty() {
-                            // view.toggle_keyboard(false, None, hub, rq, context);
-                            // self.define(Some(text), rq, context);
-                            username = Option::from(text.clone());
-                        }
-                    },
-                    Event::Submit(ViewId::GuiPasswordField1, ref text) => {
-                        if !text.is_empty() {
-                            // view.toggle_keyboard(false, None, hub, rq, context);
-                            // self.define(Some(text), rq, context);
-                            password = Option::from(text.clone());
-                        }
-                    },
-                    Event::Select(EntryId::Portrait) => {
-                        let n = CURRENT_DEVICE.startup_rotation();
-                        if let Ok(dims) = context.fb.set_rotation(n) {
-                            raw_sender.send(display_rotate_event(n)).ok();
-                            context.display.rotation = n;
-                            let fb_rect = Rectangle::from(dims);
-                            if context.display.dims != dims {
-                                context.display.dims = dims;
-                            }
-                        }
-                        view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
-                                                 &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
-                    },
-                    Event::Select(EntryId::IPortrait) => {
-                        let n = CURRENT_DEVICE.startup_rotation() - 2;
-                        if let Ok(dims) = context.fb.set_rotation(n) {
-                            raw_sender.send(display_rotate_event(n)).ok();
-                            context.display.rotation = n;
-                            let fb_rect = Rectangle::from(dims);
-                            if context.display.dims != dims {
-                                context.display.dims = dims;
-                            }
-                        }
-                        view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
-                                                 &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale,  &mut context, panning, disable_touch));
-                    },
-                    Event::Select(EntryId::Landscape) => {
-                        let n = CURRENT_DEVICE.startup_rotation() - 1;
-                        if let Ok(dims) = context.fb.set_rotation(n) {
-                            raw_sender.send(display_rotate_event(n)).ok();
-                            context.display.rotation = n;
-                            let fb_rect = Rectangle::from(dims);
-                            if context.display.dims != dims {
-                                context.display.dims = dims;
-                            }
-                        }
-                        view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
-                                                 &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
-                    },
-                    Event::Select(EntryId::ILandscape) => {
-                        let n = CURRENT_DEVICE.startup_rotation() - 3;
-                        if let Ok(dims) = context.fb.set_rotation(n) {
-                            raw_sender.send(display_rotate_event(n)).ok();
-                            context.display.rotation = n;
-                            let fb_rect = Rectangle::from(dims);
-                            if context.display.dims != dims {
-                                context.display.dims = dims;
-                            }
-                        }
-                        view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
-                                                 &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
-                    },
-                    Event::Toggle(ViewId::Encoding) => {
-                        // println!("{}", encoding);
-                        encoding = !encoding;
-                    },
-                    Event::Toggle(ViewId::Scaling) => {
-                        // println!("{}", scale);
-                        scale = !scale;
-                    },
-                    Event::Select(EntryId::FastA2) => {
-                        partial_update_mode = UpdateMode::Fast
-                    },
-                    Event::Select(EntryId::FastMonoA2) => {
-                        partial_update_mode = UpdateMode::FastMono
-                    },
-                    Event::Select(EntryId::GuiDU) => {
-                        partial_update_mode = UpdateMode::Gui
-                    },
-                    Event::Select(EntryId::PartialGL16) => {
-                        partial_update_mode = UpdateMode::Partial
-                    },
-                    Event::Toggle(ViewId::Touch) => {
-                        // println!("{}", disable_touch);
-                        disable_touch = !disable_touch
-                    },
-                    Event::Toggle(ViewId::Panning) => {
-                        // println!("{}", panning);
-                        panning = !panning
-                    },
-                    Event::Back => {
-                        break 'running
-                    },
-                    Event::Toggle(ViewId::VNC) => {
-                        stream = match std::net::TcpStream::connect((host.as_deref().unwrap_or(""), port)) {
-                            Ok(stream) => stream,
-                            Err(error) => {
-                                error!("cannot connect to {}:{}: {}", host.as_deref().unwrap_or(""), port, error);
-                                tx.send(Event::Console(error.to_string())).ok();
-                                continue;
-                                // std::process::exit(1)
-                            }
-                        };
-
-                        match Client::from_tcp_stream(stream, !exclusive, |methods| {
-                            debug!("available authentication methods: {:?}", methods);
-                            for method in methods {
-                                match method {
-                                    client::AuthMethod::None => return Some(client::AuthChoice::None),
-                                    client::AuthMethod::Password => {
-                                        return match password {
-                                            None => None,
-                                            Some(ref password) => {
-                                                let mut key = [0; 8];
-                                                for (i, byte) in password.bytes().enumerate() {
-                                                    if i == 8 {
-                                                        break;
-                                                    }
-                                                    key[i] = byte
-                                                }
-                                                Some(client::AuthChoice::Password(key))
-                                            }
-                                        }
-                                    }
-                                    client::AuthMethod::AppleRemoteDesktop => match (username.as_deref(), password.as_deref()) {
-                                        (Some(username), Some(password)) => {
-                                            return Some(client::AuthChoice::AppleRemoteDesktop(
-                                                username.to_owned(),
-                                                password.to_owned(),
-                                            ))
-                                        }
-                                        _ => (),
-                                    },
-                                }
-                            }
-                            None
-                        }) {
-                            Ok(mut new_vnc) => {
-                                (width, height) = new_vnc.size();
-                                info!(
-                                    "connected to \"{}\", {}x{} framebuffer",
-                                   new_vnc.name(),
-                                    width,
-                                    height
-                                );
-                                vnc_format =new_vnc.format();
-                                info!("received {:?}", vnc_format);
-                               new_vnc.set_format(SD_COLOR_FORMAT).unwrap();
-                                info!("request {:?}", SD_COLOR_FORMAT);
-                                vnc_format =new_vnc.format();
-                                info!("received {:?}", vnc_format);
-
-                                if encoding {
-                                   new_vnc.set_encodings(&[Encoding::RfbEncodingMono1bpp]).unwrap()
-                                } else {
-                                   new_vnc.set_encodings(&[Encoding::Zrle]).unwrap()
-                                }
-
-                                fb.set_rotation(context.display.rotation).ok();
-
-                                if scale {
-                                    if new_vnc
-                                        .request_update(
-                                            Rect {
-                                                left: 0,
-                                                top: 0,
-                                                width,
-                                                height,
-                                            },
-                                            false,
-                                        )
-                                        .is_err()
-                                    {
-                                        error!("server disconnected");
-                                    }
-                                } else {
-                                    if new_vnc
-                                        .request_update(
-                                            Rect {
-                                                left: 0,
-                                                top: 0,
-                                                width: if width < fb.width() as u16 {
-                                                    width
-                                                } else {
-                                                    fb.width() as u16
-                                                },
-                                                height: if height < fb.height() as u16 {
-                                                    height
-                                                } else {
-                                                    fb.height() as u16
-                                                },
-                                            },
-                                            false,
-                                        )
-                                        .is_err()
-                                    {
-                                        error!("server disconnected");
-                                    }
-                                }
-                                if scale {
-                                    let scale_parameters = scale_parameters::new(true, width, height, fb.width(), fb.height() ,x_offset ,y_offset);
-                                    scale_factor = scale_parameters.scale_factor;
-                                    x_padding = scale_parameters.x_padding;
-                                    y_padding = scale_parameters.y_padding;
-                                    device_fb_rect = scale_parameters.device_fb_rect;
-                                    _cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
-                                    _original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
-                                    scaled_fb_rect = scale_parameters.scaled_fb_rect;
-                                } else {
-                                    let scale_parameters = scale_parameters::new(false, width, height, fb.width(), fb.height() ,x_offset ,y_offset);
-                                    scale_factor = scale_parameters.scale_factor;
-                                    x_padding = scale_parameters.x_padding;
-                                    y_padding = scale_parameters.y_padding;
-                                    device_fb_rect = scale_parameters.device_fb_rect;
-                                    _cropped_vnc_fb_rect = scale_parameters.cropped_vnc_fb_rect;
-                                    _original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
-                                    scaled_fb_rect = scale_parameters.scaled_fb_rect;
-                                }
-                                gui_active = false;
-                                // println!("gui");
-                                vnc = Some(new_vnc);
-                                fb.draw_rectangle(&device_fb_rect, WHITE);
-                                break 'gui;
-                            },
-                            Err(error) => {
-                                // println!("guifail");
-                                error!("cannot initialize VNC session: {}", error);
-                                // std::process::exit(1)
-                                tx.send(Event::Console(error.to_string())).ok();
-                                continue
-                            }
-                        };
-                        // if vnc.is_some() {break 'gui} else {}
-                    },
-                    _ => {
-                        handle_event(view.as_mut(), &evt, &tx, &mut bus, &mut rq, &mut context);
-                    },
-                }
-                process_render_queue(view.as_ref(), &mut rq, &mut context, &mut updating);
-                while let Some(ce) = bus.pop_front() {
-                    tx.send(ce).ok();
-                }
-            }
-        };
-        // println!("mainloop");
+        let mut frame_complete = false;
+        let current_format = vnc.format();
 
         let event_params = event_handling::event_params::handle_events(&rx, scale_factor, width, height,
-                                                                       fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
-                                                                       &mut vnc, finger_down_count, finger_seconds, &mut fb,
-                                                                       panning, has_drawn_once, scale, long_tap, gui_enabled, disable_touch);
+                                                    fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
+                                                    &mut vnc, finger_down_count, finger_seconds, &mut fb,
+                                                    panning, has_drawn_once, scale, long_tap, false, disable_touch);
         has_drawn_once = event_params.has_drawn_once;
         finger_down_count =  event_params.finger_down_count;
         if event_params.exit_to_nickel {
             break 'running
         };
         if event_params.exit_to_gui {
-            gui_active = true
+            //gui = true
         }
-        // };
+            // };
         x_offset = event_params.x_offset;
         y_offset = event_params.y_offset; //if its the same, it will be returned un changed, if changed return changed
 
-        let mut frame_complete = false;
-        let current_format = vnc.as_mut().unwrap().format();
-
-        for event in vnc.as_mut().unwrap().poll_iter() {
+        'event: for event in vnc.poll_iter() {
             use client::Event;
             // dbg!(&event);
             match event {
@@ -1070,6 +718,8 @@ fn main() -> Result<(), Error> {
                     debug!("PutPixels, since loop {}, rect {}x{} at X{} Y{}"
                         , elapsed_ms, vnc_rect.width, vnc_rect.height,
                     vnc_rect.left, vnc_rect.top);
+
+                    let mut counter_time = Instant::now();
 
                     let bpp = current_format.bits_per_pixel as usize / 8;
 
@@ -1089,258 +739,66 @@ fn main() -> Result<(), Error> {
                             continue;
                         }
 
-                        for y_out in 0..scaled_rect_height {
+                        let src_x: Vec<u32> = (0..scaled_rect_width)
+                            .map(|x_out| ((x_out as f32 / scale_factor).round() as u32)
+                                .clamp(0, vnc_rect.width as u32 - 1))
+                            .collect();
+                        let src_y: Vec<u32> = (0..scaled_rect_height)
+                            .map(|y_out| ((y_out as f32 / scale_factor).round() as u32)
+                                .clamp(0, vnc_rect.height as u32 - 1))
+                            .collect();
 
-                            let original_y = ((y_out as f32) / scale_factor);
+                        // if false {
+                        if encoding {
 
-                            for x_out in 0..scaled_rect_width {
-                                let original_x = ((x_out as f32) / scale_factor);
+                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                            let mut row_buf = [0u8; 2048];
 
-                                let local_x = (original_x.round() as u32)
-                                    .clamp(0, (vnc_rect.width - 1) as u32);
-                                let local_y = (original_y.round() as u32)
-                                    .clamp(0, (vnc_rect.height - 1) as u32);
-                                // // sample pixel...
-                                let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
+                            for y_out in 0..scaled_rect_height {
+                                let local_y = src_y[y_out as usize];
+                                // let original_y = ((y_out as f32) / scale_factor);
+                                // let local_y = (original_y.round() as u32)
+                                //     .clamp(0, (vnc_rect.height - 1) as u32);
 
-                                let mut luma = 0;
+                                for x_out in 0..scaled_rect_width as usize {
+                                    let local_x = src_x[x_out] as usize;
+                                    // let original_x = ((x_out as f32) / scale_factor);
+                                    // let local_x = (original_x.round() as u32)
+                                    //     .clamp(0, (vnc_rect.width - 1) as u32) as usize;
 
-                                let r;
-                                let g;
-                                let b;
-
-                                if !encoding && src_idx * bpp > pixels.len() {
-                                    //dbg!(src_idx*bpp,pixels.len());
-                                    //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
-                                    //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
-                                    //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
-                                    //u8 used bc cpu is byte addressable, smallest unit
-                                    dbg!(src_idx * bpp > pixels.len());
-                                    continue
-                                } else {
-                                    if encoding {
-                                        if src_idx * 1/8 > pixels.len() {
-                                            continue
-                                        }
-                                        // let byte = pixels[src_idx*1/8];
-                                        // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
-                                        // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
-                                        //
-                                        // r = luma;
-                                        // g = luma;
-                                        // b = luma;
-                                        let row_bytes = (vnc_rect.width as usize + 7) / 8;
-
-                                        let byte_index =
-                                            (local_y as usize * row_bytes) + (local_x as usize / 8);
-
-                                        let bit_pos = 7 - (local_x % 8);
-
-                                        let byte = pixels[byte_index];
-                                        let bit = (byte >> bit_pos) & 1;
-
-                                        let luma = if bit == 1 { 255 } else { 0 };
-                                        r = luma;
-                                        g = luma;
-                                        b = luma;
-
-
-                                    } else if bpp >= 3 {
-                                        r = pixels[src_idx * bpp];
-                                        g = pixels[src_idx * bpp + 1];
-                                        b = pixels[src_idx * bpp + 2];
-                                    } else if bpp == 2 && colour_format == 4 {
-                                        // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
-                                        // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
-                                        let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
-                                            | (pixels[src_idx * bpp] as u16); //little endian
-                                        let r0 = (bytes >> 0) & 0b11111;
-                                        let g0 = (bytes >> 5) & 0b111111;
-                                        let b0 = (bytes >> 11) & 0b11111;
-                                        //rgb565? rrrrrggggggbbbbb
-                                        //bbbbbggggggrrrrr
-                                        r = (r0 as f32 * 8.225806) as u8;
-                                        g = (g0 as f32 * 4.047619) as u8;
-                                        b = (b0 as f32 * 8.225806) as u8;
-                                    } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 2) & 0b11;
-                                        let g0 = (byte >> 4) & 0b11;
-                                        let b0 = (byte >> 6) & 0b11;
-
-                                        r = r0*85;
-                                        g = g0*85;
-                                        b = b0*85;
-
-                                        //rrggbbaa
-                                        //aabbggrr
-                                    } else if bpp == 1 && colour_format == 3 {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 0) & 0b111;
-                                        let g0 = (byte >> 3) & 0b111;
-                                        let b0 = (byte >> 6) & 0b11;
-
-                                        r = (r0 as f32 * 36.42857) as u8;
-                                        g = (g0 as f32 * 36.42857) as u8;
-                                        b = b0 * 85;
-
-                                        //rrrgggbb
-                                        //bbgggrrr
-                                    } else {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 0) & 0b11;
-                                        let g0 = (byte >> 2) & 0b11;
-                                        let b0 = (byte >> 4) & 0b11;
-
-                                        r = r0*85;
-                                        g = g0*85;
-                                        b = b0*85;
-                                        //rrggbb??
-                                    };
-
-                                    let r_luma = post_proc_bin.data[r as usize];
-                                    let g_luma = post_proc_bin.data[g as usize];
-                                    let b_luma = post_proc_bin.data[b as usize];
-
-                                    let rgb = Color::Rgb(r_luma, g_luma, b_luma);
-                                    if blue_noise {
-                                        fb.set_pixel(
-                                            scaled_l + x_out + x_padding,
-                                            scaled_t + y_out + y_padding,
-                                            transform_dither_g2(
-                                                scaled_l + x_out + x_padding,
-                                                scaled_t + y_out + y_padding,
-                                                rgb,
-                                            ),
-                                        );
-                                    } else {
-                                        fb.set_pixel(
-                                            scaled_l + x_out + x_padding,
-                                            scaled_t + y_out + y_padding,
-                                            rgb,
-                                        );
-                                    };
+                                    let byte_idx = local_y as usize * row_bytes + local_x / 8;
+                                    let bit_pos = 7 - (local_x % 8);
+                                    let bit = (pixels[byte_idx] >> bit_pos) & 1;
+                                    row_buf[x_out] = if bit == 1 { 0xFF } else { 0x00 };
                                 }
+
+                                fb.write_row_1bpp(
+                                    scaled_l + x_padding,
+                                    scaled_t + y_out + y_padding,
+                                    &row_buf[..scaled_rect_width as usize],
+                                );
                             }
-                        }
 
-                        // } //5x3+4=19 x2=38 5x3x2+4x2=38 but 5x2x3x2+4x2=68
-                        //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
-                        //actual pixel updating happens in client.rs fb.update method
-                        //}
-                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one...
+                            // println!("Above continue");
+                            // continue 'event
+                        } else {
+                            for y_out in 0..scaled_rect_height {
+                                // let original_y = ((y_out as f32) / scale_factor);
+                                // let local_y = (original_y.round() as u32)
+                                //     .clamp(0, (vnc_rect.height - 1) as u32);
 
-                        let w = (vnc_rect.width as f32 * scale_factor).round();
-                        let h = (vnc_rect.height as f32 * scale_factor).round();
-                        let l = (vnc_rect.left as f32 * scale_factor).round();
-                        let t = (vnc_rect.top as f32 * scale_factor).round();
+                                let local_y = src_y[y_out as usize];
 
-                        let delta_rect = rect![
-                            l as i32 + x_padding as i32,
-                            t as i32 + y_padding as i32,
-                            (l + scaled_rect_width as f32 /*+ w */+ x_padding as f32) as i32,
-                            (t + scaled_rect_height as f32 /*+ h */+ y_padding as f32) as i32
-                        ];
-                        push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
+                                for x_out in 0..scaled_rect_width {
+                                    // let original_x = ((x_out as f32) / scale_factor);
+                                    // let local_x = (original_x.round() as u32)
+                                    //     .clamp(0, (vnc_rect.width - 1) as u32);
 
-                        let elapsed_ms = time_at_sol.elapsed().as_millis();
-                        debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
-                    } else {
-                        let w = vnc_rect.width as u32;
-                        let h = vnc_rect.height as u32;
-                        let l = vnc_rect.left as u32;
-                        let t = vnc_rect.top as u32;
-
-                        let mut left_x_truncate = 0;
-                        let mut top_y_truncate = 0;
-                        let mut right_x_truncate = 0;
-                        let mut bottom_y_truncate = 0;
-
-                        //let bpp = current_format.bits_per_pixel as usize / 8;
-
-                        //better check if in range than offset, range 0-758,758-1516,1616-1920
-                        //0-500 250-750 500-1000, offset, width+offset
-                        //we want to shift... by 50% of framebuffer each time?
-
-                        if height > fb.height() as u16 {
-                            if t > fb.height() + y_offset {
-                                // println!("OOBPPch");
-                                continue;
-                            }; //if top is greater than upper limit
-                            if t + h < y_offset {
-                                // println!("OOBPPch");
-                                continue;
-                            }; //if bottom is less than lower limit
-                        };
-
-                        if width > fb.width() as u16 {
-                            // if l > fb.width()+x_offset || l < x_offset { continue };
-                            if l > fb.width() + x_offset {
-                                // println!("OOBPPcw");
-                                continue;
-                            }; //if left is greater than upper limit
-                            if l + w < x_offset {
-                                // println!("OOBPPcw");
-                                continue;
-                            }; //if right is less than lower limit
-                        }; //left could be lower than limit and right could be more than upper, but doesnt mean whole rect is out of bounds
-
-                        #[cfg(feature = "eink_device")]
-                        {
-                            'row: for row in 0..h {
-                                if height > fb.height() as u16 {
-                                    if t + row < y_offset {
-                                        //if y is less than lower limit, skip this pixel
-                                        // println!("OOBPPph");
-                                        continue;
-                                    };
-                                    if t + row == fb.height() + y_offset {
-                                        //if y is greater than upper limit, break row loop?
-                                        bottom_y_truncate = row; //break column loop? because the rect is done, no more pixels will be in bounds
-                                        break 'row;
-                                    };
-                                    //we have filtered out rects that are entirely out of bounds
-                                    //now filter partial in bounds or, entirely in bounds
-                                    if t + row == y_offset {
-                                        //if y is greater than lower limit?
-                                        top_y_truncate = row; //if exactly on limit, make truncate this y pixel
-                                    };
-                                };
-                                let row_idx = row * w;
-
-                                'col: for col in 0..w {
-
-                                    if width > fb.width() as u16 {
-                                        if l + col < x_offset {
-                                            //if x below lower limit skip this pixel
-                                            // println!("OOBPPpw");
-                                            continue;
-                                        }
-
-                                        if l + col == fb.width() + x_offset {
-                                            //if x is upper bound, i want to skip future x loops too
-                                            right_x_truncate = col; //since the limit will be the same for each row... no, we only want to break this one
-                                            break 'col; //because we must still process the remaining pixels and set them
-                                        }
-
-                                        if l + col == x_offset {
-                                            // a rect that is partial can only fulfill one
-                                            //but a full bound rect can fulfill both conditions,
-                                            // in which case truncate should be 0 but instead set to upper or lower limit, there is
-                                            //only one truncate value, the line at which a rect is in bounds, is it possible a rect can be bigger
-                                            //than current range and has 2 truncation lines? yes...
-                                            left_x_truncate = col; //if x is lower bound
-                                        }
-                                    };
-                                    // we only deal with coordinates, yea one co ordinate can never be smaller than min and bigger than ma
-
-                                    // let c = Color::Gray(gray_pixels[(row * w + col) as usize]);
-                                    // pixels is vec of u8, 1 byte per vector element
-                                    // 4 elements make one pixel
-                                    let src_idx = (row_idx + col) as usize;
+                                    let local_x = src_x[x_out as usize];
+                                    // sample pixel...
+                                    let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
 
                                     let mut luma = 0;
-
                                     let r;
                                     let g;
                                     let b;
@@ -1354,48 +812,26 @@ fn main() -> Result<(), Error> {
                                         dbg!(src_idx * bpp > pixels.len());
                                         continue
                                     } else {
-                                        if encoding {
-                                            if src_idx * 1 / 8 > pixels.len() {
-                                                continue
-                                            }
-                                            // let byte = pixels[src_idx*1/8];
-                                            // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
-                                            // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
-                                            //
-                                            // r = luma;
-                                            // g = luma;
-                                            // b = luma;
-                                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
-
-                                            let byte_index =
-                                                (row as usize * row_bytes) + (col as usize / 8);
-
-                                            let bit_pos = 7 - (col % 8);
-
-                                            let byte = pixels[byte_index];
-                                            let bit = (byte >> bit_pos) & 1;
-
-                                            let luma = if bit == 1 { 255 } else { 0 };
-                                            r = luma;
-                                            g = luma;
-                                            b = luma;
-                                            // let row_bytes = (vnc_rect.width as usize + 7) / 8;
-                                            // let mut buf = vec![0u8; (vnc_rect.width * vnc_rect.height) as usize];
-                                            // for row in 0..vnc_rect.height {
-                                            //     for col in 0..vnc_rect.width {
-                                            //         let byte_idx = row as usize * row_bytes + col as usize / 8;
-                                            //         let bit_pos  = 7 - (col % 8);
-                                            //         buf[(row * vnc_rect.width + col) as usize] =
-                                            //             if (pixels[byte_idx] >> bit_pos) & 1 == 1 { 0xFF } else { 0x00 };
-                                            //     }
-                                            // }
-                                            // single blit instead of 776k individual set_pixel calls
-                                            // fb.draw_grayscale_buf(l, t, w, h, &buf);
-                                            // continue
-                                            // This requires fb to expose a bulk-write method, but should drop draw time from ~490ms to <10ms.
-
-                                            //dbg!(src_idx*bpp,pixels.len());
-                                        } else if bpp >= 3 {
+                                        // if encoding {
+                                        //     if src_idx * 1/8 > pixels.len() {
+                                        //         continue
+                                        //     }
+                                        //     let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                        //
+                                        //     let byte_index =
+                                        //         (local_y as usize * row_bytes) + (local_x as usize / 8);
+                                        //
+                                        //     let bit_pos = 7 - (local_x % 8);
+                                        //
+                                        //     let byte = pixels[byte_index];
+                                        //     let bit = (byte >> bit_pos) & 1;
+                                        //
+                                        //     let luma = if bit == 1 { 255 } else { 0 };
+                                        //     r = luma;
+                                        //     g = luma;
+                                        //     b = luma;
+                                        // } else
+                                        if bpp >= 3 {
                                             r = pixels[src_idx * bpp];
                                             g = pixels[src_idx * bpp + 1];
                                             b = pixels[src_idx * bpp + 2];
@@ -1455,32 +891,304 @@ fn main() -> Result<(), Error> {
                                         let rgb = Color::Rgb(r_luma, g_luma, b_luma);
                                         if blue_noise {
                                             fb.set_pixel(
-                                                l + col - x_offset + x_padding,
-                                                t + row - y_offset + y_padding,
+                                                scaled_l + x_out + x_padding,
+                                                scaled_t + y_out + y_padding,
                                                 transform_dither_g2(
-                                                    l + col - x_offset + x_padding,
-                                                    t + row - y_offset + y_padding,
+                                                    scaled_l + x_out + x_padding,
+                                                    scaled_t + y_out + y_padding,
                                                     rgb,
                                                 ),
                                             );
                                         } else {
                                             fb.set_pixel(
-                                                l + col - x_offset + x_padding,
-                                                t + row - y_offset + y_padding,
+                                                scaled_l + x_out + x_padding,
+                                                scaled_t + y_out + y_padding,
                                                 rgb,
                                             );
                                         };
-                                    };
+                                    }
                                 }
                             }
-                            //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
-                            //actual pixel updating happens in client.rs fb.update method
                         }
-                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one into fb...
-                        //and then update called separately
+                        // println!("After continue");
+
+                        let w = (vnc_rect.width as f32 * scale_factor).round();
+                        let h = (vnc_rect.height as f32 * scale_factor).round();
+                        let l = (vnc_rect.left as f32 * scale_factor).round();
+                        let t = (vnc_rect.top as f32 * scale_factor).round();
+
+                        let delta_rect = rect![
+                            l as i32 + x_padding as i32,
+                            t as i32 + y_padding as i32,
+                            (l + /*w*/scaled_rect_width as f32+ x_padding as f32) as i32,
+                            (t + /*h*/scaled_rect_height as f32+ y_padding as f32) as i32
+                        ];
+
+                        push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
 
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
-                        // debug!("draw Δt: {}", elapsed_ms);
+                        debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
+
+                        counter += 1;
+
+                        cumulative_time += counter_time.elapsed().as_micros();
+                        cumulative_pixels += (scaled_rect_width*scaled_rect_height) as u128;
+
+                        println!("{}, {} pixels in {} micros {} pix/micro",
+                        counter, cumulative_pixels,cumulative_time,
+                            cumulative_pixels/cumulative_time);
+                    } else {
+
+                        let w = vnc_rect.width as u32;
+                        let h = vnc_rect.height as u32;
+                        let l = vnc_rect.left as u32;
+                        let t = vnc_rect.top as u32;
+
+                        left_x_truncate = 0;
+                        top_y_truncate = 0;
+                        right_x_truncate = 0;
+                        bottom_y_truncate = 0;
+
+                        if height > fb.height() as u16 {
+                            if t > fb.height() + y_offset {
+                                continue;
+                            }; //if top is greater than upper limit
+                            if t + h < y_offset {
+                                continue;
+                            }; //if bottom is less than lower limit
+                        };
+
+                        if width > fb.width() as u16 {
+                            // if l > fb.width()+x_offset || l < x_offset { continue };
+                            if l > fb.width() + x_offset {
+                                continue;
+                            }; //if left is greater than upper limit
+                            if l + w < x_offset {
+                                continue;
+                            }; //if right is less than lower limit
+                        }; //left could be lower than limit and right could be more than upper, but doesnt mean whole rect is out of bounds
+
+                        // if false {
+                        if encoding {
+                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                            let mut row_buf = [0u8; 2048];
+
+                            for y_out in 0..h {
+                                if height > fb.height() as u16 {
+                                    if t + y_out < y_offset { continue; }
+                                    if t + y_out == fb.height() + y_offset {
+                                        bottom_y_truncate = y_out as u32;
+                                        break;
+                                    }
+                                    if t + y_out == y_offset {
+                                        top_y_truncate = y_out as u32;
+                                    }
+                                }
+
+                                let mut col = 0usize;
+                                for src_byte_idx in 0..row_bytes {
+                                    if width > fb.width() as u16 {
+                                        if l as usize + col < x_offset as usize { col += 8; continue; }
+                                        if l as usize + col >= (fb.width() + x_offset) as usize {
+                                            right_x_truncate = (col / 8) as u32;
+                                            break;
+                                        }
+                                        if l as usize + col == x_offset as usize {
+                                            left_x_truncate = (col / 8) as u32;
+                                        }
+                                    }
+                                    let byte = pixels[y_out as usize * row_bytes + src_byte_idx];
+                                    row_buf[col..col + 8].copy_from_slice(&EXPAND_1BPP_8[byte as usize]);
+                                    col += 8;
+                                }
+
+                                let row_width = if right_x_truncate > 0 { right_x_truncate as usize } else { w as usize };
+
+                                fb.write_row_1bpp(
+                                    (l as i32 + x_padding as i32 - x_offset as i32 + left_x_truncate as i32) as u32,
+                                    (t as i32 + y_out as i32 + y_padding as i32 - y_offset as i32) as u32,
+                                    &row_buf[left_x_truncate as usize..row_width],
+                                );
+                            }
+
+                            // println!("Above continue");
+                            // continue 'event
+                        } else {
+                            #[cfg(feature = "eink_device")]
+                            {
+                                'row: for row in 0..h {
+                                    //we dont want to compute only one per row because we need to set
+                                    //each pixel, if kill loop pixel never gets set? if thats the case cant we set pixel earlier in here?
+                                    //no if we break the loop early, x co ordinate never gets calculated? yea
+                                    if height > fb.height() as u16 {
+                                        if t + row < y_offset {
+                                            //if y is less than lower limit, skip this row
+                                            continue;
+                                        };
+                                        if t + row == fb.height() + y_offset {
+                                            //if y is greater than upper limit, break row loop?
+                                            bottom_y_truncate = row; //break column loop? because the rect is done, no more pixels will be in bounds
+                                            break 'row;
+                                        };
+                                        //we have filtered out rects that are entirely out of bounds
+                                        //now filter partial in bounds or, entirely in bounds
+                                        if t + row == y_offset {
+                                            //if y is greater than lower limit?
+                                            top_y_truncate = row; //if exactly on limit, make truncate this row
+                                        };
+                                    };
+                                    let row_idx = row * w;
+                                    'col: for col in 0..w {
+
+                                        if width > fb.width() as u16 {
+                                            if l + col < x_offset {
+                                                //if x below lower limit skip this pixel
+                                                continue;
+                                            }
+
+                                            if l + col == fb.width() + x_offset {
+                                                //if x is upper bound, i want to skip future x loops too
+                                                right_x_truncate = col; //since the limit will be the same for each row... no, we only want to break this one
+                                                break 'col; //because we must still process the remaining pixels and set them
+                                            }
+
+                                            if l + col == x_offset {
+                                                // a rect that is partial can only fulfill one
+                                                //but a full bound rect can fulfill both conditions,
+                                                // in which case truncate should be 0 but instead set to upper or lower limit, there is
+                                                //only one truncate value, the line at which a rect is in bounds, is it possible a rect can be bigger
+                                                //than current range and has 2 truncation lines? yes...
+                                                left_x_truncate = col; //if x is lower bound
+                                            }
+                                        };
+                                        //we only deal with coordinates, yea one co ordinate can never be smaller than min and bigger than ma
+
+                                        //let c = Color::Gray(gray_pixels[(row * w + col) as usize]);
+                                        //pixels is vec of u8, 1 byte per vector element
+                                        //4 elements make one pixel
+                                        let src_idx = (row_idx + col) as usize;
+
+                                        let mut luma = 0;
+                                        let r;
+                                        let g;
+                                        let b;
+
+                                        if !encoding && src_idx * bpp > pixels.len() {
+                                            //dbg!(src_idx*bpp,pixels.len());
+                                            //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
+                                            //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
+                                            //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
+                                            //u8 used bc cpu is byte addressable, smallest unit
+                                            dbg!(src_idx * bpp > pixels.len());
+                                            continue
+                                        } else {
+                                            // if encoding {
+                                            //     if src_idx * 1/8 > pixels.len() {
+                                            //         continue
+                                            //     }
+                                            //
+                                            //     let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                            //
+                                            //     let byte_index =
+                                            //         (row as usize * row_bytes) + (col as usize / 8);
+                                            //
+                                            //     let bit_pos = 7 - (col % 8);
+                                            //
+                                            //     let byte = pixels[byte_index];
+                                            //     let bit = (byte >> bit_pos) & 1;
+                                            //
+                                            //     let luma = if bit == 1 { 255 } else { 0 };
+                                            //     r = luma;
+                                            //     g = luma;
+                                            //     b = luma;
+                                            //
+                                            // } else
+                                            if bpp >= 3 {
+                                                r = pixels[src_idx * bpp];
+                                                g = pixels[src_idx * bpp + 1];
+                                                b = pixels[src_idx * bpp + 2];
+                                            } else if bpp == 2 && colour_format == 4 {
+                                                // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
+                                                // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
+                                                let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
+                                                    | (pixels[src_idx * bpp] as u16); //little endian
+                                                let r0 = (bytes >> 0) & 0b11111;
+                                                let g0 = (bytes >> 5) & 0b111111;
+                                                let b0 = (bytes >> 11) & 0b11111;
+                                                //rgb565? rrrrrggggggbbbbb
+                                                //bbbbbggggggrrrrr
+                                                r = (r0 as f32 * 8.225806) as u8;
+                                                g = (g0 as f32 * 4.047619) as u8;
+                                                b = (b0 as f32 * 8.225806) as u8;
+                                            } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 2) & 0b11;
+                                                let g0 = (byte >> 4) & 0b11;
+                                                let b0 = (byte >> 6) & 0b11;
+
+                                                r = r0*85;
+                                                g = g0*85;
+                                                b = b0*85;
+
+                                                //rrggbbaa
+                                                //aabbggrr
+                                            } else if bpp == 1 && colour_format == 3 {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 0) & 0b111;
+                                                let g0 = (byte >> 3) & 0b111;
+                                                let b0 = (byte >> 6) & 0b11;
+
+                                                r = (r0 as f32 * 36.42857) as u8;
+                                                g = (g0 as f32 * 36.42857) as u8;
+                                                b = b0 * 85;
+
+                                                //rrrgggbb
+                                                //bbgggrrr
+                                            } else {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 0) & 0b11;
+                                                let g0 = (byte >> 2) & 0b11;
+                                                let b0 = (byte >> 4) & 0b11;
+
+                                                r = r0*85;
+                                                g = g0*85;
+                                                b = b0*85;
+                                                //rrggbb??
+                                            };
+
+                                            let r_luma = post_proc_bin.data[r as usize];
+                                            let g_luma = post_proc_bin.data[g as usize];
+                                            let b_luma = post_proc_bin.data[b as usize];
+
+                                            let rgb = Color::Rgb(r_luma, g_luma, b_luma);
+                                            if blue_noise {
+                                                fb.set_pixel(
+                                                    l + col - x_offset + x_padding,
+                                                    t + row - y_offset + y_padding,
+                                                    transform_dither_g2(
+                                                        l + col - x_offset + x_padding,
+                                                        t + row - y_offset + y_padding,
+                                                        rgb,
+                                                    ),
+                                                );
+                                            } else {
+                                                fb.set_pixel(
+                                                    l + col - x_offset + x_padding,
+                                                    t + row - y_offset + y_padding,
+                                                    rgb,
+                                                );
+                                            };
+                                        };
+                                    }
+                                }
+                                //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
+                                //actual pixel updating happens in client.rs fb.update method
+                            }
+                        }
+                        // println!("After continue");
+
+                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one into fb...
+                        //and then update called separately
 
                         let mut w = vnc_rect.width as i32;
                         let mut h = vnc_rect.height as i32;
@@ -1500,23 +1208,21 @@ fn main() -> Result<(), Error> {
                             l + w + x_padding as i32 - x_offset as i32,
                             t + h + y_padding as i32 - y_offset as i32
                         ];
-                        _cropped_vnc_fb_rect = rect![
-                            0 + x_padding as i32 + x_offset as i32,
-                            0 + y_padding as i32 + y_offset as i32,
-                            fb.width() as i32 + x_padding as i32 + x_offset as i32,
-                            fb.height() as i32 + y_padding as i32 + y_offset as i32
-                        ];
-                        //cropped_vnc gives location in vnc.as_mut().unwrap() space, while delta rect must use dev fb space otherwise fb.update will fail
-                        //-xoffset vs +x_offset will also ensure they never equal to each othter...
-                        //delta rect and dev fb rect... can be equal to each other in size but in different location?
-                        //since we always subtract offset... we could receive a rect entirely out of bounds same size... but because we discard rects out of bounds
-                        //were fine?
-
                         push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
 
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
                         debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
+
+                        counter += 1;
+
+                        cumulative_time += counter_time.elapsed().as_micros();
+                        cumulative_pixels += pixels.len() as u128;
+
+                        println!("{}, {} pixels in {} micros {} pix/micro",
+                        counter, cumulative_pixels,cumulative_time,
+                            cumulative_pixels/cumulative_time);
                     };
+
                     // Single pass: convert to grayscale + apply post-processing LUT.
                     // Use the current negotiated format (may have changed via set_format).
                 }
@@ -1524,7 +1230,6 @@ fn main() -> Result<(), Error> {
                 Event::CopyPixels { src, dst } => {
                     let elapsed_ms = time_at_sol.elapsed().as_millis();
                     debug!("Copy pixels {} MS elsaped since loop", elapsed_ms);
-                    //most of the time copyrect is never sent by server...
 
                     #[cfg(feature = "eink_device")]
                     {
@@ -1549,7 +1254,7 @@ fn main() -> Result<(), Error> {
                                 );
 
                                 for y in 0..intermediary_pixmap.height {
-                                    let y_total= (src_top + y as f32 + y_padding as f32).round() as u32;
+                                    let y_total = (src_top + y as f32 + y_padding as f32).round() as u32;
                                     //copypixels merely copy whats on framebuffer, if putpixels blue noise dithered so will copied
                                     for x in 0..intermediary_pixmap.width {
                                         let color = fb.get_pixel(
@@ -1580,6 +1285,11 @@ fn main() -> Result<(), Error> {
                                 ((dst.top as f32 * scale_factor) + dst.height as f32).round() as i32 + y_padding as i32
                             ];
                             push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
+                            // if delta_rect.width() < 100 && delta_rect.height() < 100 {
+                            //     // fb.update(&delta_rect, partial_update_mode).ok();
+                            // } else {
+                            //     push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
+                            // }
                         //add to dirty rect list, merely copy rect to another place, no update call
                         } else {
                             let src_left = src.left as u32;
@@ -1592,53 +1302,26 @@ fn main() -> Result<(), Error> {
                             let mut dst_width = dst.width as u32;
                             let mut dst_height = dst.height as u32;
 
-                            let mut src_left_x_truncate = 0;
-                            let mut src_top_y_truncate = 0;
-                            let mut src_right_x_truncate = 0;
-                            let mut src_bottom_y_truncate = 0;
-
-                            let mut dst_left_x_truncate = 0;
-                            let mut dst_top_y_truncate = 0;
-                            let mut dst_right_x_truncate = 0;
-                            let mut dst_bottom_y_truncate = 0;
-
-
+                            left_x_truncate = 0;
+                            top_y_truncate = 0;
+                            right_x_truncate = 0;
+                            bottom_y_truncate = 0;
 
                             {
                                 if height > fb.height() as u16 {
                                     if dst_top > fb.height() + y_offset {
-                                        println!("OOBCPchDT");
                                         continue;
                                     }; //if top is greater than upper
                                     if dst_top + dst_height < y_offset {
-                                        println!("OOBCPchDT");
-                                        continue;
-                                    }; //if bot is less than lower
-                                    if src_top > fb.height() + y_offset {
-                                        println!("OOBCPchST");
-                                        continue;
-                                    }; //if top is greater than upper
-                                    if src_top + dst_height < y_offset {
-                                        println!("OOBCPchST");
                                         continue;
                                     }; //if bot is less than lower
                                 }
 
                                 if width > fb.width() as u16 {
                                     if dst_left > fb.width() + x_offset {
-                                        println!("OOBCPcwDL");
                                         continue;
                                     }; //if left is greater than upper
                                     if dst_left + dst_width < x_offset {
-                                        println!("OOBCPcwDL");
-                                        continue;
-                                    }; //if right is less than lower
-                                    if src_left > fb.width() + x_offset {
-                                        println!("OOBCPcwSL");
-                                        continue;
-                                    }; //if left is greater than upper
-                                    if src_left + dst_width < x_offset {
-                                        println!("OOBCPcwSL");
                                         continue;
                                     }; //if right is less than lower
                                 }
@@ -1649,105 +1332,73 @@ fn main() -> Result<(), Error> {
                                     CURRENT_DEVICE.color_samples(),
                                 );
 
-                                'src_y: for y in 0..intermediary_pixmap.height {
-                                    if height > fb.height() as u16 {
-                                        if y + src_top == fb.height() + y_offset {
-                                            src_bottom_y_truncate = y;
-                                            break 'src_y;
-                                        } //if y pixel is greater than upper
-
-                                        if y + src_top < y_offset {
-                                            // println!("OOBCPph");
-                                            continue;
-                                        } //do we want continue or break first? which saves cycles?
-
-                                        if y + src_top == y_offset {
-                                            src_top_y_truncate = y;
-                                        } //if y less than lower, once hits lower limit
-                                    };
-                                    let y_total = src_top + y + y_padding - y_offset as u32;
-
-                                    'src_x: for x in 0..intermediary_pixmap.width {
-
-                                        if width > fb.width() as u16 {
-                                            if x + src_left == fb.width() + x_offset {
-                                                src_right_x_truncate = x;
-                                                break 'src_x;
-                                            }
-                                            if x + src_left < x_offset {
-                                                // println!("OOBCPpw");
-                                                continue;
-                                            }
-                                            if x + src_left == x_offset {
-                                                src_left_x_truncate = x;
-                                            }
-                                        };
+                                for y in 0..intermediary_pixmap.height {
+                                    let y_pixel = src_top + y + y_padding - y_offset as u32;
+                                    for x in 0..intermediary_pixmap.width {
                                         let color = fb.get_pixel(
                                             src_left + x + x_padding - x_offset as u32,
-                                            y_total,
+                                            y_pixel,
                                         );
                                         intermediary_pixmap.set_pixel(x, y, color);
                                     }
                                 }
 
-                                'dst_y: for y in 0..intermediary_pixmap.height {
+                                'y: for y in 0..intermediary_pixmap.height {
                                     if height > fb.height() as u16 {
                                         if y + dst_top == fb.height() + y_offset {
-                                            dst_bottom_y_truncate = y;
-                                            break 'dst_y;
+                                            bottom_y_truncate = y;
+                                            break 'y;
                                         } //if y pixel is greater than upper
 
                                         if y + dst_top < y_offset {
-                                            // println!("OOBCPph");
                                             continue;
                                         } //do we want continue or break first? which saves cycles?
 
                                         if y + dst_top == y_offset {
-                                            dst_top_y_truncate = y;
+                                            top_y_truncate = y;
                                         } //if y less than lower, once hits lower limit
                                     };
-                                    let y_total = dst_top + y - y_offset + y_padding as u32;
-
-                                    'dst_x: for x in 0..intermediary_pixmap.width {
+                                    let y_pixel = dst_top + y - y_offset + y_padding as u32;
+                                    'x: for x in 0..intermediary_pixmap.width {
                                         let color = intermediary_pixmap.get_pixel(x, y);
 
                                         if width > fb.width() as u16 {
                                             if x + dst_left == fb.width() + x_offset {
-                                                dst_right_x_truncate = x;
-                                                break 'dst_x;
+                                                right_x_truncate = x;
+                                                break 'x;
                                             }
                                             if x + dst_left < x_offset {
-                                                // println!("OOBCPpw");
                                                 continue;
                                             }
                                             if x + dst_left == x_offset {
-                                                dst_left_x_truncate = x;
+                                                left_x_truncate = x;
                                             }
                                         };
                                         // fb.set_pixel(dst_left + x, dst_top + y,  transform_dither_g2(dst_left + x, dst_top + y,color));
                                         fb.set_pixel(
                                             dst_left + x - x_offset + x_padding as u32,
-                                            y_total,
+                                            y_pixel,
                                             color,
                                         );
                                     }
                                 }
                             }
-                            if dst_right_x_truncate > 0 {
-                                dst_width = dst_right_x_truncate
+                            if right_x_truncate > 0 {
+                                dst_width = right_x_truncate
                             }
-                            if dst_bottom_y_truncate > 0 {
-                                dst_height = dst_bottom_y_truncate
+                            if bottom_y_truncate > 0 {
+                                dst_height = bottom_y_truncate
                             }
 
                             let delta_rect = rect![
-                                dst_left as i32 + x_padding as i32 + dst_left_x_truncate as i32
+                                dst_left as i32 + x_padding as i32 + left_x_truncate as i32
                                     - x_offset as i32,
-                                dst_top as i32 + y_padding as i32 + dst_top_y_truncate as i32
+                                dst_top as i32 + y_padding as i32 + top_y_truncate as i32
                                     - y_offset as i32,
                                 (dst_left + dst_width) as i32 + x_padding as i32 - x_offset as i32,
                                 (dst_top + dst_height) as i32 + y_padding as i32 - y_offset as i32
                             ];
+
                             push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
                         };
                     }
@@ -1762,9 +1413,10 @@ fn main() -> Result<(), Error> {
             }
         }
 
+        //only at end of frame request a new update
         if frame_complete {
             if scale {
-                if vnc.as_mut().unwrap()
+                if vnc
                     .request_update(
                         Rect {
                             left: 0,
@@ -1780,7 +1432,7 @@ fn main() -> Result<(), Error> {
                     break;
                 }
             } else {
-                if vnc.as_mut().unwrap()
+                if vnc
                     .request_update(
                         Rect {
                             left: 0 + x_offset as u16,
@@ -1805,7 +1457,6 @@ fn main() -> Result<(), Error> {
                 }
             }
         }
-        //only at end of frame request a new update
 
         if (time_at_last_draw.elapsed().as_millis() as u64) < FRAME_MS {
             let elapsed_ms = time_at_sol.elapsed().as_millis();
@@ -1845,8 +1496,7 @@ fn main() -> Result<(), Error> {
 
                 debug!(
                     "Full update, since last {}, target {}, u_rect {}, late by {}, {} since loop, {} DRs",
-                    time_at_last_draw.elapsed().as_millis(), FRAME_MS, union,
-                    time_at_last_draw.elapsed().as_millis() as u64 - FRAME_MS, elapsed_ms, dirty_rects.len()
+                    time_at_last_draw.elapsed().as_millis(), FRAME_MS, union, time_at_last_draw.elapsed().as_millis() as u64 - FRAME_MS, elapsed_ms, dirty_rects.len(),
                 );
 
                 dirty_rects_since_refresh.clear();
@@ -1878,8 +1528,7 @@ fn main() -> Result<(), Error> {
 
                 debug!(
                     "Partial update, since last {}, target {}, u_rect {}, late by {}, {} since loop, {} DRs",
-                    time_at_last_draw.elapsed().as_millis(), FRAME_MS, union,
-                    time_at_last_draw.elapsed().as_millis() as u64 - FRAME_MS, elapsed_ms, dirty_rects.len()
+                    time_at_last_draw.elapsed().as_millis(), FRAME_MS, union, time_at_last_draw.elapsed().as_millis() as u64 - FRAME_MS, elapsed_ms, dirty_rects.len()
                 );
 
                 dirty_rects.clear();
@@ -1904,5 +1553,6 @@ fn push_to_dirty_rect_list(list: &mut Vec<Rectangle>, rect: Rectangle) {
             return;
         }
     }
+
     list.push(rect);
 }

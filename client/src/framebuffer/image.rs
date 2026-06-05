@@ -74,7 +74,7 @@ impl Framebuffer for Pixmap {
     }
 
     #[inline]
-    
+
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         if self.data.is_empty() {
             return WHITE;

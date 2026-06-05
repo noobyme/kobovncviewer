@@ -47,7 +47,7 @@ pub struct KoboFramebuffer1 {
     blue_index: usize,
     bytes_per_pixel: u8,
     pub var_info: VarScreenInfo,
-    fix_info: FixScreenInfo,
+    pub fix_info: FixScreenInfo,
 }
 
 impl KoboFramebuffer1 {
@@ -156,27 +156,68 @@ impl KoboFramebuffer1 {
     //             *spot.offset(fb.blue_index as isize)]
     //     }
     // }
-
 }
 //
 
 impl Framebuffer for KoboFramebuffer1 {
 
+    // fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
+    //     let bpp = self.bytes_per_pixel as isize; // 3 or 4
+    //     let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp
+    //         + (self.var_info.yoffset as isize + y as isize) * self.fix_info.line_length as isize;
+    //
+    //     debug_assert!(base_addr + luma_row.len() as isize * bpp <= self.frame_size as isize);sudo nano /etc/gdm3/greeter.dconf-defaults
+    //
+    //     //
+    //     // unsafe {
+    //     //     std::ptr::copy_nonoverlapping(
+    //     //         luma_row.as_ptr(),
+    //     //         self.frame.offset(base_addr) as *mut u8,
+    //     //         luma_row.len(),
+    //     //     );
+    //     // }
+    //
+    //     unsafe {
+    //         let base = self.frame.offset(base_addr) as *mut u8;
+    //         for (i, &luma_byte) in luma_row.iter().enumerate() {
+    //             let expanded = &EXPAND_1BPP_32[luma_byte as usize]; // 8 pixels already in wire format
+    //             std::ptr::copy_nonoverlapping(
+    //                 expanded.as_ptr() as *const u8,
+    //                 base.add(i * 8 * bpp as usize),
+    //                 8 * bpp as usize,
+    //             );
+    //         }
+    //     }
+
+
+        // unsafe {
+        //     let base = self.frame.offset(base_addr) as *mut u8;
+        //     for (i, &luma) in luma_row.iter().enumerate() {
+        //         let spot = base.add(i * bpp as usize);
+        //         *spot.offset(self.red_index as isize)   = luma;
+        //         *spot.offset(self.green_index as isize)  = luma;
+        //         *spot.offset(self.blue_index as isize)   = luma;
+        //     }
+        // }
+    // }
     fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
-        let bpp = self.bytes_per_pixel as isize; // 3 or 4
-        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp
+        let bpp = self.bytes_per_pixel as usize;
+        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp as isize
             + (self.var_info.yoffset as isize + y as isize) * self.fix_info.line_length as isize;
 
-        debug_assert!(base_addr + luma_row.len() as isize * bpp <= self.frame_size as isize);
+        debug_assert!(base_addr + luma_row.len() as isize * bpp as isize <= self.frame_size as isize);
 
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                luma_row.as_ptr(),
-                self.frame.offset(base_addr) as *mut u8,
-                luma_row.len(),
-            );
+            let mut dst = self.frame.offset(base_addr) as *mut u8;
+            for &luma in luma_row.iter() {
+                *dst                            = luma;
+                *dst.offset(1)                  = luma;
+                *dst.offset(2)                  = luma;
+                dst = dst.add(bpp);
+            }
         }
     }
+
 
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         let rgb = (self.get_pixel_rgb)(self, x, y);
@@ -185,8 +226,9 @@ impl Framebuffer for KoboFramebuffer1 {
     //8,16,32 bit rgb, 8bit returns only 1 value 3 times, 16 and 32 returns 3 diff values
 
     fn set_pixel(&mut self, x: u32, y: u32, color: Color) {
-        // let c = (self.transform)(x, y, color);//dithering?
-        (self.set_pixel_rgb)(self, x, y, color.rgb());
+        // let c = (self.transform)(x, y, color);//dithering? is it always called?
+        (self.set_pixel_rgb)(self, x, y, color.rgb()); //wtf is this syntax?
+        //struct field then function braces?
     }
 
     fn set_blended_pixel(&mut self, x: u32, y: u32, color: Color, alpha: f32) {
