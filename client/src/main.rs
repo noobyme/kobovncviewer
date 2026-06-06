@@ -929,14 +929,14 @@ fn main() -> Result<(), Error> {
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
                         debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
 
-                        counter += 1;
-
-                        cumulative_time += counter_time.elapsed().as_micros();
-                        cumulative_pixels += (scaled_rect_width*scaled_rect_height) as u128;
-
-                        println!("{}, {} pixels in {} micros {} pix/micro",
-                        counter, cumulative_pixels,cumulative_time,
-                            cumulative_pixels/cumulative_time);
+                        // counter += 1;
+                        //
+                        // cumulative_time += counter_time.elapsed().as_micros();
+                        // cumulative_pixels += (scaled_rect_width*scaled_rect_height) as u128;
+                        //
+                        // println!("{}, {} pixels in {} micros {} pix/micro",
+                        // counter, cumulative_pixels,cumulative_time,
+                        //     cumulative_pixels/cumulative_time);
                     } else {
 
                         let w = vnc_rect.width as u32;
@@ -949,6 +949,8 @@ fn main() -> Result<(), Error> {
                         right_x_truncate = 0;
                         bottom_y_truncate = 0;
 
+                        //filter completely out of bounds rects
+
                         if height > fb.height() as u16 {
                             if t > fb.height() + y_offset {
                                 continue;
@@ -956,6 +958,9 @@ fn main() -> Result<(), Error> {
                             if t + h < y_offset {
                                 continue;
                             }; //if bottom is less than lower limit
+                            // top_y_truncate = if y_offset as i32- t as i32 > 0  {y_offset - t} else {0};
+                            // bottom_y_truncate = if (y_offset+fb.height()) as i32 - t as i32 > 0
+                            //     && ((y_offset+fb.height()) as i32 - t as i32) < h as i32 {y_offset + fb.height() - t} else {0};
                         };
 
                         if width > fb.width() as u16 {
@@ -966,6 +971,9 @@ fn main() -> Result<(), Error> {
                             if l + w < x_offset {
                                 continue;
                             }; //if right is less than lower limit
+                            // left_x_truncate = if x_offset as i32- l as i32 > 0  {x_offset - l} else {0};
+                            // right_x_truncate = if (x_offset+fb.height()) as i32 - l as i32 > 0
+                            //     && ((x_offset+fb.height()) as i32 - l as i32) < w as i32 {x_offset+fb.width() - l} else {0};
                         }; //left could be lower than limit and right could be more than upper, but doesnt mean whole rect is out of bounds
 
                         // if false {
@@ -1017,9 +1025,6 @@ fn main() -> Result<(), Error> {
                             #[cfg(feature = "eink_device")]
                             {
                                 'row: for row in 0..h {
-                                    //we dont want to compute only one per row because we need to set
-                                    //each pixel, if kill loop pixel never gets set? if thats the case cant we set pixel earlier in here?
-                                    //no if we break the loop early, x co ordinate never gets calculated? yea
                                     if height > fb.height() as u16 {
                                         if t + row < y_offset {
                                             //if y is less than lower limit, skip this row
@@ -1039,29 +1044,25 @@ fn main() -> Result<(), Error> {
                                     };
                                     let row_idx = row * w;
                                     'col: for col in 0..w {
-
                                         if width > fb.width() as u16 {
                                             if l + col < x_offset {
                                                 //if x below lower limit skip this pixel
                                                 continue;
                                             }
-
-                                            if l + col == fb.width() + x_offset {
-                                                //if x is upper bound, i want to skip future x loops too
+                                            if l + col == fb.width() + x_offset { //if x is upper bound
                                                 right_x_truncate = col; //since the limit will be the same for each row... no, we only want to break this one
                                                 break 'col; //because we must still process the remaining pixels and set them
                                             }
-
                                             if l + col == x_offset {
-                                                // a rect that is partial can only fulfill one
-                                                //but a full bound rect can fulfill both conditions,
-                                                // in which case truncate should be 0 but instead set to upper or lower limit, there is
-                                                //only one truncate value, the line at which a rect is in bounds, is it possible a rect can be bigger
-                                                //than current range and has 2 truncation lines? yes...
                                                 left_x_truncate = col; //if x is lower bound
                                             }
                                         };
-                                        //we only deal with coordinates, yea one co ordinate can never be smaller than min and bigger than ma
+                                        //a rect that is partial in bound can only fulfill one
+                                        //but a full bound rect can fulfill both conditions if it is the size of entire screen,
+                                        //in which case truncate should be 0 but instead set to upper or lower limit, there is
+                                        //only one truncate value, the line at which a rect is in bounds, is it possible a rect can be bigger
+                                        //than current range and has 2 truncation lines? yes... but server never sends any
+                                        //we only deal with coordinates, yea one co ordinate can never be smaller than min and bigger than max
 
                                         //let c = Color::Gray(gray_pixels[(row * w + col) as usize]);
                                         //pixels is vec of u8, 1 byte per vector element
@@ -1213,14 +1214,17 @@ fn main() -> Result<(), Error> {
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
                         debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
 
-                        counter += 1;
-
-                        cumulative_time += counter_time.elapsed().as_micros();
-                        cumulative_pixels += pixels.len() as u128;
-
-                        println!("{}, {} pixels in {} micros {} pix/micro",
-                        counter, cumulative_pixels,cumulative_time,
-                            cumulative_pixels/cumulative_time);
+                        // counter += 1;
+                        //
+                        // cumulative_time += counter_time.elapsed().as_micros();
+                        // if encoding {
+                        //     cumulative_pixels += 8*pixels.len() as u128;
+                        // } else {
+                        //     cumulative_pixels += pixels.len() as u128;
+                        // }
+                        // println!("{}, {} pixels in {} micros {} pix/micro",
+                        // counter, cumulative_pixels,cumulative_time,
+                        //     cumulative_pixels/cumulative_time);
                     };
 
                     // Single pass: convert to grayscale + apply post-processing LUT.
