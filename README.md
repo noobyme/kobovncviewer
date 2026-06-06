@@ -2,7 +2,7 @@
 
 I am heavily assisted by AI. 
 
-There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand
+There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
 
 This tool has been confirmed to work on Nia. It should work on the latest devices too
 
@@ -41,14 +41,14 @@ Available options:
 
 Advanced users:
 
-- partial_update: Choose 1=Fast/A2 2=Fastmono/A2 3=Gui/DU 4=Partial/GL16 5=Full/GC16. Testing on Kobo Nia with:DroidVNC without blue_noise turned on only mode 2 works and you end up with undithered 1 bit colour image, TightVNC both mode 1 and 2 work without the need for blue_noise but heavy detail loss and ghosting. With blue_noise turned on detail loss is less and ghosting seems better too, I think this is due to improved partial update but im not sure, but I thought a2 mode didnt differentiate between full and partial so im not sure. a2 mode does seem to improve cursor trails but only marginally. blue_noise slows down the frame rate though
+- partial_update: Choose 1=Fast/A2 2=Fastmono/A2 3=Gui/DU 4=Partial/GL16 5=Full/GC16. Testing on Kobo Nia with:DroidVNC without blue_noise turned on only mode 2 works and you end up with undithered 1 bit colour image, TightVNC both mode 1 and 2 work without the need for blue_noise but heavy detail loss and ghosting. With blue_noise turned on detail loss is less and ghosting seems better too, I think this is due to improved partial update but im not sure, but I thought a2 mode didnt differentiate between full and partial so im not sure. a2 mode does seem to improve cursor trails but only marginally. blue_noise slows down the frame rate though so its better to apply 1 bit dithering server side using custom encoding
 - full_update: Choose 1=Fast 2=Fastmono 3=Gui 4=Partial 5=Full
 - set_dither:Dithers 16 level grayscale. The input color is in {0 .. 255}. The output color is in G16. Grayscale 16
 - set_monochrome:unsure exactly wat it do, plato function. sets monochrome flag for epd ioctl?
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
-- blue_noise: For A2/DU mode, client side dithering to produce 1bit grayscale
-- encoding: Request custom high speed encoding, best used with A2 or DU waveform
+- blue_noise: For A2/DU mode, use client side blue noise dithering to produce 1 bit grayscale
+- encoding: Request custom high speed encoding from server, best used with A2 or DU waveform
 
 For example:
 
