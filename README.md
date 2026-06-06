@@ -57,11 +57,14 @@ For example:
 ```
 NickelMenu entry, kills all programs then restarts at end using plato
 ```
-menu_item:main:VNCTest:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovnclatestrelease 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
+menu_item:main:VNCNoGui:nickel_wifi:enable 
+chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovncnogui 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
+
+menu_item:main:VNCGui:nickel_wifi:enable 
+chain_success:cmd_spawn:quiet:sleep 15;exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh 
 ```
 Place the kobovnc file onto your kobo ereader drive, then use the location of the file to run.
-eg /mnt/onboard/kobovnc. the . before the / means current directory. Rename the file to kobovnc instead of kobovncrelease or kobovncdebug if need be 
+eg /mnt/onboard/kobovnc. the . before the / means current directory. Rename the file to kobovnc instead of kobovncrelease or kobovncdebug if need be. Edit the launchvnc file to include default parameters like host and password. The sleep gives time to allow wifi to connect
 
 For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214). This isnt present on some devices, like Nia.
 
