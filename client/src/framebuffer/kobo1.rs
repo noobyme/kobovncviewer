@@ -163,20 +163,23 @@ impl KoboFramebuffer1 {
 impl Framebuffer for KoboFramebuffer1 {
 
     fn write_row_1bpp(&self, x: u32, y: u32, luma_row: &[u8]) {
-        let bpp = self.bytes_per_pixel as isize; // 3 or 4
-        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp
+        let bpp = self.bytes_per_pixel as usize;
+        let base_addr = (self.var_info.xoffset as isize + x as isize) * bpp as isize
             + (self.var_info.yoffset as isize + y as isize) * self.fix_info.line_length as isize;
 
-        debug_assert!(base_addr + luma_row.len() as isize * bpp <= self.frame_size as isize);
+        debug_assert!(base_addr + luma_row.len() as isize * bpp as isize <= self.frame_size as isize);
 
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                luma_row.as_ptr(),
-                self.frame.offset(base_addr) as *mut u8,
-                luma_row.len(),
-            );
+            let mut dst = self.frame.offset(base_addr) as *mut u8;
+            for &luma in luma_row.iter() {
+                *dst                            = luma;
+                *dst.offset(1)                  = luma;
+                *dst.offset(2)                  = luma;
+                dst = dst.add(bpp);
+            }
         }
     }
+
 
     fn get_pixel(&self, x: u32, y: u32) -> Color {
         let rgb = (self.get_pixel_rgb)(self, x, y);

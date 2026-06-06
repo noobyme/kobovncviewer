@@ -492,7 +492,7 @@ impl View for Gui {
             Event::Submit(ViewId::GuiInputField1, ref text) => {
                 if !text.is_empty() {
                     // self.toggle_keyboard(false, None, hub, rq, context);
-                          hub.send(Event::Submit(ViewId::GuiInputField1, text.clone())).ok();
+                    hub.send(Event::Submit(ViewId::GuiInputField1, text.clone())).ok();
                 }
                 true
             },

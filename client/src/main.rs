@@ -672,6 +672,9 @@ fn main() -> Result<(), Error> {
             // original_vnc_fb_rect = scale_parameters.original_vnc_fb_rect;
             // scaled_fb_rect = scale_parameters.scaled_fb_rect;
         }
+        fb.draw_rectangle(&device_fb_rect, WHITE);
+        fb.update(&device_fb_rect, UpdateMode::Full).ok(); //when gui is not enabled device fb rect is 0,0,0,0 causing crash
+
     }
 
     //dbg!(fb.width(),width,fb.height(),height,(width as f32*scale_factor) as i32,(height as f32*scale_factor) as i32);
@@ -702,22 +705,20 @@ fn main() -> Result<(), Error> {
     };
 
     // Build once at startup — 2KB, permanently L1-resident
-    // static EXPAND_1BPP: [[u8; 8]; 256] = {
-    //     let mut table = [[0u8; 8]; 256];
-    //     let mut byte = 0usize;
-    //     while byte < 256 {
-    //         let mut bit = 0;
-    //         while bit < 8 {
-    //             table[byte][bit] = if (byte >> (7 - bit)) & 1 == 1 { 0xFF } else { 0x00 };
-    //             bit += 1;
-    //         }
-    //         byte += 1;
-    //     }
-    //     table
-    // };
+    static EXPAND_1BPP: [[u8; 8]; 256] = {
+        let mut table = [[0u8; 8]; 256];
+        let mut byte = 0usize;
+        while byte < 256 {
+            let mut bit = 0;
+            while bit < 8 {
+                table[byte][bit] = if (byte >> (7 - bit)) & 1 == 1 { 0xFF } else { 0x00 };
+                bit += 1;
+            }
+            byte += 1;
+        }
+        table
+    };
 
-    fb.draw_rectangle(&device_fb_rect, WHITE);
-    fb.update(&device_fb_rect, UpdateMode::Full).ok();
 
     let mut finger_down_count = Instant::now();
     let finger_seconds = Duration::from_secs(2);
@@ -1073,6 +1074,8 @@ fn main() -> Result<(), Error> {
                         , elapsed_ms, vnc_rect.width, vnc_rect.height,
                     vnc_rect.left, vnc_rect.top);
 
+                    let mut counter_time = Instant::now();
+
                     let bpp = current_format.bits_per_pixel as usize / 8;
 
                     if scale {
@@ -1091,258 +1094,66 @@ fn main() -> Result<(), Error> {
                             continue;
                         }
 
-                        for y_out in 0..scaled_rect_height {
+                        let src_x: Vec<u32> = (0..scaled_rect_width)
+                            .map(|x_out| ((x_out as f32 / scale_factor).round() as u32)
+                                .clamp(0, vnc_rect.width as u32 - 1))
+                            .collect();
+                        let src_y: Vec<u32> = (0..scaled_rect_height)
+                            .map(|y_out| ((y_out as f32 / scale_factor).round() as u32)
+                                .clamp(0, vnc_rect.height as u32 - 1))
+                            .collect();
 
-                            let original_y = ((y_out as f32) / scale_factor);
+                        // if false {
+                        if encoding {
 
-                            for x_out in 0..scaled_rect_width {
-                                let original_x = ((x_out as f32) / scale_factor);
+                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                            let mut row_buf = [0u8; 2048];
 
-                                let local_x = (original_x.round() as u32)
-                                    .clamp(0, (vnc_rect.width - 1) as u32);
-                                let local_y = (original_y.round() as u32)
-                                    .clamp(0, (vnc_rect.height - 1) as u32);
-                                // // sample pixel...
-                                let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
+                            for y_out in 0..scaled_rect_height {
+                                let local_y = src_y[y_out as usize];
+                                // let original_y = ((y_out as f32) / scale_factor);
+                                // let local_y = (original_y.round() as u32)
+                                //     .clamp(0, (vnc_rect.height - 1) as u32);
 
-                                let mut luma = 0;
+                                for x_out in 0..scaled_rect_width as usize {
+                                    let local_x = src_x[x_out] as usize;
+                                    // let original_x = ((x_out as f32) / scale_factor);
+                                    // let local_x = (original_x.round() as u32)
+                                    //     .clamp(0, (vnc_rect.width - 1) as u32) as usize;
 
-                                let r;
-                                let g;
-                                let b;
-
-                                if !encoding && src_idx * bpp > pixels.len() {
-                                    //dbg!(src_idx*bpp,pixels.len());
-                                    //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
-                                    //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
-                                    //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
-                                    //u8 used bc cpu is byte addressable, smallest unit
-                                    dbg!(src_idx * bpp > pixels.len());
-                                    continue
-                                } else {
-                                    if encoding {
-                                        if src_idx * 1/8 > pixels.len() {
-                                            continue
-                                        }
-                                        // let byte = pixels[src_idx*1/8];
-                                        // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
-                                        // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
-                                        //
-                                        // r = luma;
-                                        // g = luma;
-                                        // b = luma;
-                                        let row_bytes = (vnc_rect.width as usize + 7) / 8;
-
-                                        let byte_index =
-                                            (local_y as usize * row_bytes) + (local_x as usize / 8);
-
-                                        let bit_pos = 7 - (local_x % 8);
-
-                                        let byte = pixels[byte_index];
-                                        let bit = (byte >> bit_pos) & 1;
-
-                                        let luma = if bit == 1 { 255 } else { 0 };
-                                        r = luma;
-                                        g = luma;
-                                        b = luma;
-
-
-                                    } else if bpp >= 3 {
-                                        r = pixels[src_idx * bpp];
-                                        g = pixels[src_idx * bpp + 1];
-                                        b = pixels[src_idx * bpp + 2];
-                                    } else if bpp == 2 && colour_format == 4 {
-                                        // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
-                                        // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
-                                        let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
-                                            | (pixels[src_idx * bpp] as u16); //little endian
-                                        let r0 = (bytes >> 0) & 0b11111;
-                                        let g0 = (bytes >> 5) & 0b111111;
-                                        let b0 = (bytes >> 11) & 0b11111;
-                                        //rgb565? rrrrrggggggbbbbb
-                                        //bbbbbggggggrrrrr
-                                        r = (r0 as f32 * 8.225806) as u8;
-                                        g = (g0 as f32 * 4.047619) as u8;
-                                        b = (b0 as f32 * 8.225806) as u8;
-                                    } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 2) & 0b11;
-                                        let g0 = (byte >> 4) & 0b11;
-                                        let b0 = (byte >> 6) & 0b11;
-
-                                        r = r0*85;
-                                        g = g0*85;
-                                        b = b0*85;
-
-                                        //rrggbbaa
-                                        //aabbggrr
-                                    } else if bpp == 1 && colour_format == 3 {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 0) & 0b111;
-                                        let g0 = (byte >> 3) & 0b111;
-                                        let b0 = (byte >> 6) & 0b11;
-
-                                        r = (r0 as f32 * 36.42857) as u8;
-                                        g = (g0 as f32 * 36.42857) as u8;
-                                        b = b0 * 85;
-
-                                        //rrrgggbb
-                                        //bbgggrrr
-                                    } else {
-                                        let byte = pixels[src_idx];
-                                        let r0 = (byte >> 0) & 0b11;
-                                        let g0 = (byte >> 2) & 0b11;
-                                        let b0 = (byte >> 4) & 0b11;
-
-                                        r = r0*85;
-                                        g = g0*85;
-                                        b = b0*85;
-                                        //rrggbb??
-                                    };
-
-                                    let r_luma = post_proc_bin.data[r as usize];
-                                    let g_luma = post_proc_bin.data[g as usize];
-                                    let b_luma = post_proc_bin.data[b as usize];
-
-                                    let rgb = Color::Rgb(r_luma, g_luma, b_luma);
-                                    if blue_noise {
-                                        fb.set_pixel(
-                                            scaled_l + x_out + x_padding,
-                                            scaled_t + y_out + y_padding,
-                                            transform_dither_g2(
-                                                scaled_l + x_out + x_padding,
-                                                scaled_t + y_out + y_padding,
-                                                rgb,
-                                            ),
-                                        );
-                                    } else {
-                                        fb.set_pixel(
-                                            scaled_l + x_out + x_padding,
-                                            scaled_t + y_out + y_padding,
-                                            rgb,
-                                        );
-                                    };
+                                    let byte_idx = local_y as usize * row_bytes + local_x / 8;
+                                    let bit_pos = 7 - (local_x % 8);
+                                    let bit = (pixels[byte_idx] >> bit_pos) & 1;
+                                    row_buf[x_out] = if bit == 1 { 0xFF } else { 0x00 };
                                 }
+
+                                fb.write_row_1bpp(
+                                    scaled_l + x_padding,
+                                    scaled_t + y_out + y_padding,
+                                    &row_buf[..scaled_rect_width as usize],
+                                );
                             }
-                        }
 
-                        // } //5x3+4=19 x2=38 5x3x2+4x2=38 but 5x2x3x2+4x2=68
-                        //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
-                        //actual pixel updating happens in client.rs fb.update method
-                        //}
-                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one...
+                            // println!("Above continue");
+                            // continue 'event
+                        } else {
+                            for y_out in 0..scaled_rect_height {
+                                // let original_y = ((y_out as f32) / scale_factor);
+                                // let local_y = (original_y.round() as u32)
+                                //     .clamp(0, (vnc_rect.height - 1) as u32);
 
-                        let w = (vnc_rect.width as f32 * scale_factor).round();
-                        let h = (vnc_rect.height as f32 * scale_factor).round();
-                        let l = (vnc_rect.left as f32 * scale_factor).round();
-                        let t = (vnc_rect.top as f32 * scale_factor).round();
+                                let local_y = src_y[y_out as usize];
 
-                        let delta_rect = rect![
-                            l as i32 + x_padding as i32,
-                            t as i32 + y_padding as i32,
-                            (l + scaled_rect_width as f32 /*+ w */+ x_padding as f32) as i32,
-                            (t + scaled_rect_height as f32 /*+ h */+ y_padding as f32) as i32
-                        ];
-                        push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
+                                for x_out in 0..scaled_rect_width {
+                                    // let original_x = ((x_out as f32) / scale_factor);
+                                    // let local_x = (original_x.round() as u32)
+                                    //     .clamp(0, (vnc_rect.width - 1) as u32);
 
-                        let elapsed_ms = time_at_sol.elapsed().as_millis();
-                        debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
-                    } else {
-                        let w = vnc_rect.width as u32;
-                        let h = vnc_rect.height as u32;
-                        let l = vnc_rect.left as u32;
-                        let t = vnc_rect.top as u32;
-
-                        let mut left_x_truncate = 0;
-                        let mut top_y_truncate = 0;
-                        let mut right_x_truncate = 0;
-                        let mut bottom_y_truncate = 0;
-
-                        //let bpp = current_format.bits_per_pixel as usize / 8;
-
-                        //better check if in range than offset, range 0-758,758-1516,1616-1920
-                        //0-500 250-750 500-1000, offset, width+offset
-                        //we want to shift... by 50% of framebuffer each time?
-
-                        if height > fb.height() as u16 {
-                            if t > fb.height() + y_offset {
-                                // println!("OOBPPch");
-                                continue;
-                            }; //if top is greater than upper limit
-                            if t + h < y_offset {
-                                // println!("OOBPPch");
-                                continue;
-                            }; //if bottom is less than lower limit
-                        };
-
-                        if width > fb.width() as u16 {
-                            // if l > fb.width()+x_offset || l < x_offset { continue };
-                            if l > fb.width() + x_offset {
-                                // println!("OOBPPcw");
-                                continue;
-                            }; //if left is greater than upper limit
-                            if l + w < x_offset {
-                                // println!("OOBPPcw");
-                                continue;
-                            }; //if right is less than lower limit
-                        }; //left could be lower than limit and right could be more than upper, but doesnt mean whole rect is out of bounds
-
-                        #[cfg(feature = "eink_device")]
-                        {
-                            'row: for row in 0..h {
-                                if height > fb.height() as u16 {
-                                    if t + row < y_offset {
-                                        //if y is less than lower limit, skip this pixel
-                                        // println!("OOBPPph");
-                                        continue;
-                                    };
-                                    if t + row == fb.height() + y_offset {
-                                        //if y is greater than upper limit, break row loop?
-                                        bottom_y_truncate = row; //break column loop? because the rect is done, no more pixels will be in bounds
-                                        break 'row;
-                                    };
-                                    //we have filtered out rects that are entirely out of bounds
-                                    //now filter partial in bounds or, entirely in bounds
-                                    if t + row == y_offset {
-                                        //if y is greater than lower limit?
-                                        top_y_truncate = row; //if exactly on limit, make truncate this y pixel
-                                    };
-                                };
-                                let row_idx = row * w;
-
-                                'col: for col in 0..w {
-
-                                    if width > fb.width() as u16 {
-                                        if l + col < x_offset {
-                                            //if x below lower limit skip this pixel
-                                            // println!("OOBPPpw");
-                                            continue;
-                                        }
-
-                                        if l + col == fb.width() + x_offset {
-                                            //if x is upper bound, i want to skip future x loops too
-                                            right_x_truncate = col; //since the limit will be the same for each row... no, we only want to break this one
-                                            break 'col; //because we must still process the remaining pixels and set them
-                                        }
-
-                                        if l + col == x_offset {
-                                            // a rect that is partial can only fulfill one
-                                            //but a full bound rect can fulfill both conditions,
-                                            // in which case truncate should be 0 but instead set to upper or lower limit, there is
-                                            //only one truncate value, the line at which a rect is in bounds, is it possible a rect can be bigger
-                                            //than current range and has 2 truncation lines? yes...
-                                            left_x_truncate = col; //if x is lower bound
-                                        }
-                                    };
-                                    // we only deal with coordinates, yea one co ordinate can never be smaller than min and bigger than ma
-
-                                    // let c = Color::Gray(gray_pixels[(row * w + col) as usize]);
-                                    // pixels is vec of u8, 1 byte per vector element
-                                    // 4 elements make one pixel
-                                    let src_idx = (row_idx + col) as usize;
+                                    let local_x = src_x[x_out as usize];
+                                    // sample pixel...
+                                    let src_idx = (local_y * vnc_rect.width as u32 + local_x) as usize;
 
                                     let mut luma = 0;
-
                                     let r;
                                     let g;
                                     let b;
@@ -1356,48 +1167,26 @@ fn main() -> Result<(), Error> {
                                         dbg!(src_idx * bpp > pixels.len());
                                         continue
                                     } else {
-                                        if encoding {
-                                            if src_idx * 1 / 8 > pixels.len() {
-                                                continue
-                                            }
-                                            // let byte = pixels[src_idx*1/8];
-                                            // let bit_pos = 7 - (src_idx % 8); //little endian? no, its big endian, so invert it
-                                            // luma = if (byte >> bit_pos) & 1 == 1 { 0xFF_u8 } else { 0x00_u8 }; //shift byte to that position? and keep only that one
-                                            //
-                                            // r = luma;
-                                            // g = luma;
-                                            // b = luma;
-                                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
-
-                                            let byte_index =
-                                                (row as usize * row_bytes) + (col as usize / 8);
-
-                                            let bit_pos = 7 - (col % 8);
-
-                                            let byte = pixels[byte_index];
-                                            let bit = (byte >> bit_pos) & 1;
-
-                                            let luma = if bit == 1 { 255 } else { 0 };
-                                            r = luma;
-                                            g = luma;
-                                            b = luma;
-                                            // let row_bytes = (vnc_rect.width as usize + 7) / 8;
-                                            // let mut buf = vec![0u8; (vnc_rect.width * vnc_rect.height) as usize];
-                                            // for row in 0..vnc_rect.height {
-                                            //     for col in 0..vnc_rect.width {
-                                            //         let byte_idx = row as usize * row_bytes + col as usize / 8;
-                                            //         let bit_pos  = 7 - (col % 8);
-                                            //         buf[(row * vnc_rect.width + col) as usize] =
-                                            //             if (pixels[byte_idx] >> bit_pos) & 1 == 1 { 0xFF } else { 0x00 };
-                                            //     }
-                                            // }
-                                            // single blit instead of 776k individual set_pixel calls
-                                            // fb.draw_grayscale_buf(l, t, w, h, &buf);
-                                            // continue
-                                            // This requires fb to expose a bulk-write method, but should drop draw time from ~490ms to <10ms.
-
-                                            //dbg!(src_idx*bpp,pixels.len());
-                                        } else if bpp >= 3 {
+                                        // if encoding {
+                                        //     if src_idx * 1/8 > pixels.len() {
+                                        //         continue
+                                        //     }
+                                        //     let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                        //
+                                        //     let byte_index =
+                                        //         (local_y as usize * row_bytes) + (local_x as usize / 8);
+                                        //
+                                        //     let bit_pos = 7 - (local_x % 8);
+                                        //
+                                        //     let byte = pixels[byte_index];
+                                        //     let bit = (byte >> bit_pos) & 1;
+                                        //
+                                        //     let luma = if bit == 1 { 255 } else { 0 };
+                                        //     r = luma;
+                                        //     g = luma;
+                                        //     b = luma;
+                                        // } else
+                                        if bpp >= 3 {
                                             r = pixels[src_idx * bpp];
                                             g = pixels[src_idx * bpp + 1];
                                             b = pixels[src_idx * bpp + 2];
@@ -1457,32 +1246,308 @@ fn main() -> Result<(), Error> {
                                         let rgb = Color::Rgb(r_luma, g_luma, b_luma);
                                         if blue_noise {
                                             fb.set_pixel(
-                                                l + col - x_offset + x_padding,
-                                                t + row - y_offset + y_padding,
+                                                scaled_l + x_out + x_padding,
+                                                scaled_t + y_out + y_padding,
                                                 transform_dither_g2(
-                                                    l + col - x_offset + x_padding,
-                                                    t + row - y_offset + y_padding,
+                                                    scaled_l + x_out + x_padding,
+                                                    scaled_t + y_out + y_padding,
                                                     rgb,
                                                 ),
                                             );
                                         } else {
                                             fb.set_pixel(
-                                                l + col - x_offset + x_padding,
-                                                t + row - y_offset + y_padding,
+                                                scaled_l + x_out + x_padding,
+                                                scaled_t + y_out + y_padding,
                                                 rgb,
                                             );
                                         };
-                                    };
+                                    }
                                 }
                             }
-                            //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
-                            //actual pixel updating happens in client.rs fb.update method
                         }
-                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one into fb...
-                        //and then update called separately
+                        // println!("After continue");
+
+                        let w = (vnc_rect.width as f32 * scale_factor).round();
+                        let h = (vnc_rect.height as f32 * scale_factor).round();
+                        let l = (vnc_rect.left as f32 * scale_factor).round();
+                        let t = (vnc_rect.top as f32 * scale_factor).round();
+
+                        let delta_rect = rect![
+                            l as i32 + x_padding as i32,
+                            t as i32 + y_padding as i32,
+                            (l + /*w*/scaled_rect_width as f32+ x_padding as f32) as i32,
+                            (t + /*h*/scaled_rect_height as f32+ y_padding as f32) as i32
+                        ];
+
+                        push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
 
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
-                        // debug!("draw Δt: {}", elapsed_ms);
+                        debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
+
+                        // counter += 1;
+                        //
+                        // cumulative_time += counter_time.elapsed().as_micros();
+                        // cumulative_pixels += (scaled_rect_width*scaled_rect_height) as u128;
+                        //
+                        // println!("{}, {} pixels in {} micros {} pix/micro",
+                        // counter, cumulative_pixels,cumulative_time,
+                        //     cumulative_pixels/cumulative_time);
+                    } else {
+
+                        let w = vnc_rect.width as u32;
+                        let h = vnc_rect.height as u32;
+                        let l = vnc_rect.left as u32;
+                        let t = vnc_rect.top as u32;
+
+                        let mut left_x_truncate = 0;
+                        let mut top_y_truncate = 0;
+                        let mut right_x_truncate = 0;
+                        let mut bottom_y_truncate = 0;
+
+                        if height > fb.height() as u16 {
+                            if t > fb.height() + y_offset {
+                                continue;
+                            }; //if top is greater than upper limit
+                            if t + h < y_offset {
+                                continue;
+                            }; //if bottom is less than lower limit
+                            //
+                            // top_y_truncate = if y_offset as i32- t as i32 > 0  {y_offset - t} else {0};
+                            // bottom_y_truncate = if (y_offset+fb.height()) as i32 - t as i32 > 0
+                            //     && ((y_offset+fb.height()) as i32 - t as i32) < h as i32 {y_offset + fb.height() - t} else {0};
+                            // println!("New{},{}", top_y_truncate, bottom_y_truncate);
+                        };
+
+                        if width > fb.width() as u16 {
+                            // if l > fb.width()+x_offset || l < x_offset { continue };
+                            if l > fb.width() + x_offset {
+                                continue;
+                            }; //if left is greater than upper limit
+                            if l + w < x_offset {
+                                continue;
+                            }; //if right is less than lower limit
+
+                            // left_x_truncate = if x_offset as i32- l as i32 > 0  {x_offset - l} else {0};
+                            // right_x_truncate = if (x_offset+fb.height()) as i32 - l as i32 > 0
+                            //     && ((x_offset+fb.height()) as i32 - l as i32) < w as i32 {x_offset+fb.width() - l} else {0};
+                            // println!("New{},{}", left_x_truncate, right_x_truncate);
+                        }; //left could be lower than limit and right could be more than upper, but doesnt mean whole rect is out of bounds
+
+                        // if false {
+                        if encoding {
+                            let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                            let mut row_buf = [0u8; 2048];
+
+                            for y_out in 0..h {
+                                if height > fb.height() as u16 {
+                                    if t + y_out < y_offset { continue; }
+                                    if t + y_out == fb.height() + y_offset {
+                                        bottom_y_truncate = y_out as u32;
+                                        break;
+                                    }
+                                    if t + y_out == y_offset {
+                                        top_y_truncate = y_out as u32;
+                                    }
+                                }
+
+                                let mut col = 0usize;
+                                for src_byte_idx in 0..row_bytes {
+                                    if width > fb.width() as u16 {
+                                        if l as usize + col < x_offset as usize { col += 8; continue; }
+                                        if l as usize + col >= (fb.width() + x_offset) as usize {
+                                            right_x_truncate = (col / 8) as u32;
+                                            break;
+                                        }
+                                        if l as usize + col == x_offset as usize {
+                                            left_x_truncate = (col / 8) as u32;
+                                        }
+                                    }
+                                    let byte = pixels[y_out as usize * row_bytes + src_byte_idx];
+                                    row_buf[col..col + 8].copy_from_slice(&EXPAND_1BPP[byte as usize]);
+                                    col += 8;
+                                }
+
+                                let row_width = if right_x_truncate > 0 { right_x_truncate as usize } else { w as usize };
+
+                                // println!("Enc{},{}", left_x_truncate, right_x_truncate);
+
+                                fb.write_row_1bpp(
+                                    (l as i32 + x_padding as i32 - x_offset as i32 + left_x_truncate as i32) as u32,
+                                    (t as i32 + y_out as i32 + y_padding as i32 - y_offset as i32) as u32,
+                                    &row_buf[left_x_truncate as usize..row_width],
+                                );
+                            }
+
+                            // println!("Above continue");
+                            // continue 'event
+                        } else {
+                            #[cfg(feature = "eink_device")]
+                            {
+                                'row: for row in 0..h {
+                                    if height > fb.height() as u16 {
+                                        if t + row < y_offset {
+                                            //if y is less than lower limit, skip this row
+                                            continue;
+                                        };
+                                        if t + row == fb.height() + y_offset {
+                                            //if y is greater than upper limit, break row loop?
+                                            bottom_y_truncate = row; //break column loop? because the rect is done, no more pixels will be in bounds
+                                            // println!("Old{},{}", top_y_truncate, bottom_y_truncate);
+                                            break 'row;
+                                        };
+                                        //we have filtered out rects that are entirely out of bounds
+                                        //now filter partial in bounds or, entirely in bounds
+                                        if t + row == y_offset {
+                                            //if y is greater than lower limit?
+                                            top_y_truncate = row; //if exactly on limit, make truncate this row
+                                            // println!("Old{},{}", top_y_truncate, bottom_y_truncate);
+                                        };
+                                    };
+
+                                    let row_idx = row * w;
+                                    'col: for col in 0..w {
+                                        if width > fb.width() as u16 {
+                                            if l + col < x_offset {
+                                                //if x below lower limit skip this pixel
+                                                continue;
+                                            }
+                                            if l + col == fb.width() + x_offset { //if x is upper bound
+                                                right_x_truncate = col; //since the limit will be the same for each row... no, we only want to break this one
+                                                // println!("Old{},{}", left_x_truncate, right_x_truncate);
+                                                break 'col; //because we must still process the remaining pixels and set them
+                                            }
+                                            if l + col == x_offset {
+                                                left_x_truncate = col; //if x is lower bound
+                                                // println!("Old{},{}", left_x_truncate, right_x_truncate);
+                                            }
+                                        };
+
+                                        //let c = Color::Gray(gray_pixels[(row * w + col) as usize]);
+                                        //pixels is vec of u8, 1 byte per vector element
+                                        //4 elements make one pixel
+                                        let src_idx = (row_idx + col) as usize;
+
+                                        let mut luma = 0;
+                                        let r;
+                                        let g;
+                                        let b;
+
+                                        if !encoding && src_idx * bpp > pixels.len() {
+                                            //dbg!(src_idx*bpp,pixels.len());
+                                            //pixels is collection of bytes. u8. 4 bytes is 1 pixel.
+                                            //oldest forced 8bits per pixel means 1 byte 1 is 1 pixel, if step by 4 then
+                                            //only samplying every 4th pixel? if 8 bit forced would it still be vec of u8/ wouldnt it be vec of u2? 2 bits?
+                                            //u8 used bc cpu is byte addressable, smallest unit
+                                            dbg!(src_idx * bpp > pixels.len());
+                                            continue
+                                        } else {
+                                            // if encoding {
+                                            //     if src_idx * 1/8 > pixels.len() {
+                                            //         continue
+                                            //     }
+                                            //
+                                            //     let row_bytes = (vnc_rect.width as usize + 7) / 8;
+                                            //
+                                            //     let byte_index =
+                                            //         (row as usize * row_bytes) + (col as usize / 8);
+                                            //
+                                            //     let bit_pos = 7 - (col % 8);
+                                            //
+                                            //     let byte = pixels[byte_index];
+                                            //     let bit = (byte >> bit_pos) & 1;
+                                            //
+                                            //     let luma = if bit == 1 { 255 } else { 0 };
+                                            //     r = luma;
+                                            //     g = luma;
+                                            //     b = luma;
+                                            //
+                                            // } else
+                                            if bpp >= 3 {
+                                                r = pixels[src_idx * bpp];
+                                                g = pixels[src_idx * bpp + 1];
+                                                b = pixels[src_idx * bpp + 2];
+                                            } else if bpp == 2 && colour_format == 4 {
+                                                // let bytes = pixels[src_idx*bpp] + pixels[src_idx*bpp+1];
+                                                // let pixel = (bytes[0] as u16) << 8 | (bytes[1] as u16); big endian
+                                                let bytes = (pixels[src_idx * bpp + 1] as u16) << 8
+                                                    | (pixels[src_idx * bpp] as u16); //little endian
+                                                let r0 = (bytes >> 0) & 0b11111;
+                                                let g0 = (bytes >> 5) & 0b111111;
+                                                let b0 = (bytes >> 11) & 0b11111;
+                                                //rgb565? rrrrrggggggbbbbb
+                                                //bbbbbggggggrrrrr
+                                                r = (r0 as f32 * 8.225806) as u8;
+                                                g = (g0 as f32 * 4.047619) as u8;
+                                                b = (b0 as f32 * 8.225806) as u8;
+                                            } else if bpp == 1 && (colour_format == 1 || colour_format == 2) {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 2) & 0b11;
+                                                let g0 = (byte >> 4) & 0b11;
+                                                let b0 = (byte >> 6) & 0b11;
+
+                                                r = r0*85;
+                                                g = g0*85;
+                                                b = b0*85;
+
+                                                //rrggbbaa
+                                                //aabbggrr
+                                            } else if bpp == 1 && colour_format == 3 {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 0) & 0b111;
+                                                let g0 = (byte >> 3) & 0b111;
+                                                let b0 = (byte >> 6) & 0b11;
+
+                                                r = (r0 as f32 * 36.42857) as u8;
+                                                g = (g0 as f32 * 36.42857) as u8;
+                                                b = b0 * 85;
+
+                                                //rrrgggbb
+                                                //bbgggrrr
+                                            } else {
+                                                let byte = pixels[src_idx];
+                                                let r0 = (byte >> 0) & 0b11;
+                                                let g0 = (byte >> 2) & 0b11;
+                                                let b0 = (byte >> 4) & 0b11;
+
+                                                r = r0*85;
+                                                g = g0*85;
+                                                b = b0*85;
+                                                //rrggbb??
+                                            };
+
+                                            let r_luma = post_proc_bin.data[r as usize];
+                                            let g_luma = post_proc_bin.data[g as usize];
+                                            let b_luma = post_proc_bin.data[b as usize];
+
+                                            let rgb = Color::Rgb(r_luma, g_luma, b_luma);
+                                            if blue_noise {
+                                                fb.set_pixel(
+                                                    l + col - x_offset + x_padding,
+                                                    t + row - y_offset + y_padding,
+                                                    transform_dither_g2(
+                                                        l + col - x_offset + x_padding,
+                                                        t + row - y_offset + y_padding,
+                                                        rgb,
+                                                    ),
+                                                );
+                                            } else {
+                                                fb.set_pixel(
+                                                    l + col - x_offset + x_padding,
+                                                    t + row - y_offset + y_padding,
+                                                    rgb,
+                                                );
+                                            };
+                                        };
+                                    }
+                                }
+                                //draw gray_tile merely creates grayscale pixel vec, does not do drawing?
+                                //actual pixel updating happens in client.rs fb.update method
+                            }
+                        }
+                        // println!("After continue");
+
+                        //there is no coord to say, draw rect at location. instead each pixel is drawn one by one into fb...
+                        //and then update called separately
 
                         let mut w = vnc_rect.width as i32;
                         let mut h = vnc_rect.height as i32;
@@ -1502,23 +1567,21 @@ fn main() -> Result<(), Error> {
                             l + w + x_padding as i32 - x_offset as i32,
                             t + h + y_padding as i32 - y_offset as i32
                         ];
-                        _cropped_vnc_fb_rect = rect![
-                            0 + x_padding as i32 + x_offset as i32,
-                            0 + y_padding as i32 + y_offset as i32,
-                            fb.width() as i32 + x_padding as i32 + x_offset as i32,
-                            fb.height() as i32 + y_padding as i32 + y_offset as i32
-                        ];
-                        //cropped_vnc gives location in vnc.as_mut().unwrap() space, while delta rect must use dev fb space otherwise fb.update will fail
-                        //-xoffset vs +x_offset will also ensure they never equal to each othter...
-                        //delta rect and dev fb rect... can be equal to each other in size but in different location?
-                        //since we always subtract offset... we could receive a rect entirely out of bounds same size... but because we discard rects out of bounds
-                        //were fine?
-
                         push_to_dirty_rect_list(&mut dirty_rects, delta_rect);
 
                         let elapsed_ms = time_at_sol.elapsed().as_millis();
                         debug!("End of PutPixels: {} MS elsaped since loop", elapsed_ms);
+
+                        // counter += 1;
+                        //
+                        // cumulative_time += counter_time.elapsed().as_micros();
+                        // cumulative_pixels += pixels.len() as u128;
+                        //
+                        // println!("{}, {} pixels in {} micros {} pix/micro",
+                        // counter, cumulative_pixels,cumulative_time,
+                        //     cumulative_pixels/cumulative_time);
                     };
+
                     // Single pass: convert to grayscale + apply post-processing LUT.
                     // Use the current negotiated format (may have changed via set_format).
                 }
