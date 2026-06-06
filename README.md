@@ -1,10 +1,10 @@
 #kobovnc
 
-I am heavily assisted by AI.
+I am heavily assisted by AI. 
 
-There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing.
+There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand
 
-This tool has been confirmed to work on Nia.
+This tool has been confirmed to work on Nia. It should work on the latest devices too
 
 VNC server tested successfuly with TightVNC, x11vnc, DroidVNC NG.
 
@@ -47,7 +47,7 @@ Advanced users:
 - set_monochrome:unsure exactly wat it do, plato function. sets monochrome flag for epd ioctl?
 - refresh:how often to do full refresh, units is how many rects before full refresh
 - fps: Decimal value, 30.0 or 0.5 etc
-- blue_noise: For A2/DU mode, use dithering to produce 1bit grayscale
+- blue_noise: For A2/DU mode, client side dithering to produce 1bit grayscale
 - encoding: Request custom high speed encoding, best used with A2 or DU waveform
 
 For example:
@@ -65,6 +65,8 @@ chain_success:cmd_spawn:quiet:sleep 15;exec /mnt/onboard/.adds/kobovncgui/launch
 ```
 Place the kobovnc file onto your kobo ereader drive, then use the location of the file to run.
 eg /mnt/onboard/kobovnc. the . before the / means current directory. Rename the file to kobovnc instead of kobovncrelease or kobovncdebug if need be. Edit the launchvnc file to include default parameters like host and password. The sleep gives time to allow wifi to connect
+
+To use the GUI, place the tgz into .kobo or use the zip and place the unzipped contents manually, 
 
 For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214). This isnt present on some devices, like Nia.
 
@@ -110,7 +112,7 @@ Changelog:
   - zrle.rs 
 	- adding (false, 17..=127) to zrle decode fn,
 	- changing copy_indexed fn to return result,
-	- remove '&& format.depth <= 24' condition in decode fn for 32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 32. Forcing 8bpp allowed the oldest kobovnc to ignore this.
+	- remove '&& format.depth <= 24' condition in decode fn for 32bpp, as droid vnc server depth is 32 not 24, other servers have depth of 24 not 	  32. Forcing 8bpp allowed the oldest kobovnc to ignore this.
   - main.rs:forcing the colour format to 8bpp, as the oldest version did, call vnc.request_update only at end of each frame, instead of each event, apparently this combined with debug mode can cause server to close connection.
 - Grayscale conversion using RGB instead of R
 - I have changed rotation default to use plato's function
@@ -122,6 +124,7 @@ Changelog:
 - copied latest framebuffer code from plato, probably wasnt necessary, could have added small changes to add mark 12 code without needing to copy over all other rest of files but i have no device to test it with
 - add panning for resolutions bigger than device can handle
 - minor other changes
+- Notes for documentation, copyrect is never sent by server, rect sizes are always under 100 pixels regardless of screen resolution except for raw encoding, so a full screen rect is never sent. End of frame happens much more often when no screen change and contains more than 1 temporal frame. Even if you request specific region, it will send pixels outside of that region due to rects lying partially inside/outside. Crashing was occuring because rects under threshold were updated immediately per rect in old update code. when no change occurs EOF is sent but no rects are. Nia framebuffer is 768, means x offset is 10, but device actual is 758
 
 ## Compilation instructions
 
