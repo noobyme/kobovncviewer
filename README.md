@@ -33,7 +33,7 @@ Available options:
 - Contrast: apply a post processing contrast filter
 - White_cutoff: apply a post processing filter to turn colors greater than the specified value to white (255
 - Exclusive: request a non-shared session
-- Rotate:0-3
+- Rotate:0-3 the default upright orientation is different for each device
 - Scale: fit to width or height
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
 - pan: Enable panning instead of click drag
