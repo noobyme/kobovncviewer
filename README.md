@@ -23,11 +23,11 @@ You can use this tool by connecting to the eInk device through SSH, or using men
 To connect to a VNC server:
 
 ``` shell
-./mnt/onboard/kobovnc [Host][Port][OPTIONS]
+/mnt/onboard/kobovnc [Host][Port][OPTIONS]
 ```
 Available options:
-- Host:Required, always the first
-- Port, the second argument if present
+- Host
+- Port
 - Username
 - Password
 - Contrast: apply a post processing contrast filter
@@ -76,11 +76,9 @@ ip link set lo up
 ip addr add 127.0.0.1/8 dev lo
 ifconfig lo 127.0.0.1 up
 ssh -L 15900:127.0.0.1:5900 -N user@vncserverip
-ssh -L 15900:127.0.0.1:5900 -N user@vncserverip& # for automation
+ssh -L 15900:127.0.0.1:5900 -N user@vncserverip& # for automation with key based login
 kobovnc --host 127.0.0.1 --port 15900 #Open new shell for this command
 ```
-
-Rotate to landscape display using flag --rotate 2 or --rotate 0
 
 ~~Use a resolution smaller than or exactly equal to your display. eg common resolution of 1024x768 will fail to work correctly on Kobo Nia because 1024x758 is the maximum. Custom resolution of 1024x758 works!~~
 
@@ -126,6 +124,8 @@ Changelog:
 - minor other changes
 
 ## Compilation instructions
+
+To compile libaries compile plato, I simply reused plato.
 
 To compile on wsl ubuntu noble 24.04, x86_64 CPU
 Go to linux user home directory, Clone repository, Download linaro cross toolchain file (the toolchain itself will do no need for sys root file). We want gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xzn Extract toolchain. Make cargo directory and config file. Add repositories and architecture for armv7, install arm libraries, copy libraries into toolchain directory. Install rustup and target. Build. 
