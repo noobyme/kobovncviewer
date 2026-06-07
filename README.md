@@ -16,15 +16,45 @@ Do not use with fast changing content like videos.
 **It is possible that it will damage yours.**
 *I cannot be held responsible, use this tool at your own risk.*
 
+## Installing
+
+I have provided a KoboRoot.tgz for the GUI version, simply drop it into the hidden .kobo folder when you plug in your usb, you will need to install NickelMenu to launch it. If you prefer placing it somewhere else you can use the zip file. You can use this tool by connecting to the eInk device through SSH, or using NickelMenu
+
+https://www.mobileread.com/forums/showthread.php?t=254214 This is NiLuJe's SSH
+https://github.com/pgaskin/NickelMenu
+https://github.com/baskerville/plato
+
+Both are installed the same way, dropping the KoboRoot.tgz into the .kobo folder, which is a hidden file, you need to enable viewing them.
+NickelMenu entries placed inside .adds/nm/nickelmenu.txt folder. 1. kills all programs, launches VNC session then restarts Kobo's UI using plato(youd need to have it installed), 2. enables wifi then launches gui, the launch script handles restarting Kobo UI, 3 is a variation of 2., without first enabling wifi.
+
+```
+menu_item:main:VNCNoGui:nickel_wifi:enable 
+chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovncnogui 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
+
+menu_item:main:VNCGui:nickel_wifi:enable 
+chain_success:cmd_spawn:quiet:sleep 15;exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh
+
+menu_item:main:VNCGui:cmd_spawn:quiet:exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh
+
+menu_item:main:ToggleForceWifi:nickel_setting:toggle:force_wifi
+```
+Edit the launchvnc file to include default parameters like host and password. The sleep gives time to allow wifi to connect, I havent figured out why Wifi sometimes doesnt work yet. It may be worth trying MickelMenu's toggle force wifi
+
 ## Usage
 
-You can use this tool by connecting to the eInk device through SSH, or using menu launchers on the device itself.
-
 To connect to a VNC server:
+Replace kobovnc with whatever your file is called, or, rename the file to kobovnc. /mnt/onboard/ is the location of your kobo when you connect using usb, '.' in ./mnt/onboard/ means what the current directory is, if your current working directory is /mnt/onboard/ youd call the program by ./kobovnc 
+``` shell
+/mnt/onboard/kobovnc [OPTIONS]
+```
+For example:
 
 ``` shell
-/mnt/onboard/kobovnc [Host][Port][OPTIONS]
+/mnt/onboard/kobovnc --host 192.168.2.1 --port 5900 --password abcde123 --contrast 2
+./mnt/onboard/kobovnc --host 192.168.2.1 --port 5900 --password abcde123 --contrast 2
+./kobovnc --host 192.168.2.1 --port 5900 --password abcde123 --contrast 2 
 ```
+
 Available options:
 - Host
 - Port
@@ -50,24 +80,6 @@ Advanced users:
 - blue_noise: For A2/DU mode, use client side blue noise dithering to produce 1 bit grayscale
 - encoding: Request custom high speed encoding from server, best used with A2 or DU waveform
 
-For example:
-
-``` shell
-./kobovnc 192.168.2.1 5902 --password abcde123 --contrast 2 
-```
-NickelMenu entry, kills all programs then restarts at end using plato
-```
-menu_item:main:VNCNoGui:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovncnogui 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
-
-menu_item:main:VNCGui:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:sleep 15;exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh 
-```
-Place the kobovnc file onto your kobo ereader drive, then use the location of the file to run.
-eg /mnt/onboard/kobovnc. the . before the / means current directory. Rename the file to kobovnc instead of kobovncrelease or kobovncdebug if need be. Edit the launchvnc file to include default parameters like host and password. The sleep gives time to allow wifi to connect
-
-To use the GUI, place the tgz into .kobo or use the zip and place the unzipped contents manually, 
-
 For faster framerates, use USB networking (see https://www.mobileread.com/forums/showthread.php?t=254214). This isnt present on some devices, like Nia.
 
 Example of using ssh tunneling, you need NiLuJe's KoboStuff. To automate this youd need to set up ssh keys, 
@@ -84,17 +96,18 @@ kobovnc --host 127.0.0.1 --port 15900 #Open new shell for this command
 
 ~~Use a resolution smaller than or exactly equal to your display. eg common resolution of 1024x768 will fail to work correctly on Kobo Nia because 1024x758 is the maximum. Custom resolution of 1024x758 works!~~
 
-To stop all other programs use this command before launching eink-vnc, so you can use touch input. From koreader startup script.
+To stop all other programs use one of these two commands before launching kobo-vnc, so you can use touch input. From koreader/plato startup script
 
 ```
 killall -q -TERM nickel hindenburg sickel fickel strickel fontickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd bluealsa bluetoothd fmon nanoclock.lua
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
 ```
-These commands can restart nickel from ssh.
+These commands can kill Kobo UI(Nickel), launch a program, then restart nickel from ssh when youre finished.
 ```
 eval "$(tr '\0' '\n' < /proc/$(pidof -s nickel)/environ | grep -E '^(USER|SHLVL|LD_LIBRARY_PATH|HOME|TERM|PATH|LANG|SHELL|PWD|DBUS_SESSION_BUS_ADDRESS|NICKEL_HOME|PLATFORM|PRODUCT|WIFI_MODULE|INTERFACE|UBOOT_MMC|UBOOT_RECOVERY|runlevel|prevlevel|boot_port|waveform_p|waveform_sz|hwcfg_p|hwcfg_sz|ntxfw_p|ntxfw_sz|QT_GSTREAMER_PLAYBIN_AUDIOSINK|QT_GSTREAMER_PLAYBIN_AUDIOSINK_DEVICE_PARAMETER|LIBC_FATAL_STDERR_)=' | sed 's/^/export /')"
 killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon
 cd /mnt/onboard/.adds/plato-0.9.45
+/mnt/onboard/.adds/plato-0.9.45/plato.sh #launch here
 /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
 
