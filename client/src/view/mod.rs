@@ -454,6 +454,8 @@ pub enum ViewId {
     Touch,
     Panning,
     Scaling,
+    Wifi,
+    Long_Tap,
 }
 
 // #[derive(Debug, Copy, Clone, Eq, PartialEq)]

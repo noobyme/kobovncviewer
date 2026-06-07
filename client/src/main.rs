@@ -274,7 +274,7 @@ fn main() -> Result<(), Error> {
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
 
-    std::process::Command::new("./scripts/wifi-enable.sh");
+    // std::process::Command::new("scripts/wifi-enable.sh").spawn().ok();
 
     let mut fb_red_index = 0;
     #[cfg(feature = "eink_device")]
@@ -752,7 +752,7 @@ fn main() -> Result<(), Error> {
             let mut view: Box<dyn View> = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
                                                             &host.as_deref(), &port, &username, &password,
                                                             encoding, scale,
-                                                            &mut context, panning, disable_touch));
+                                                            &mut context, panning, disable_touch, long_tap));
             process_render_queue(view.as_ref(), &mut rq, &mut context, &mut updating);
 
             while let Ok(evt) = rx.recv() {
@@ -811,7 +811,7 @@ fn main() -> Result<(), Error> {
                         }
                         view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
                                                  &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
+                                                 encoding, scale, &mut context, panning, disable_touch, long_tap));
                     },
                     Event::Select(EntryId::IPortrait) => {
                         let n = CURRENT_DEVICE.startup_rotation() - 2;
@@ -825,7 +825,7 @@ fn main() -> Result<(), Error> {
                         }
                         view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
                                                  &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale,  &mut context, panning, disable_touch));
+                                                 encoding, scale,  &mut context, panning, disable_touch, long_tap));
                     },
                     Event::Select(EntryId::Landscape) => {
                         let n = CURRENT_DEVICE.startup_rotation() - 1;
@@ -839,7 +839,7 @@ fn main() -> Result<(), Error> {
                         }
                         view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
                                                  &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
+                                                 encoding, scale, &mut context, panning, disable_touch, long_tap));
                     },
                     Event::Select(EntryId::ILandscape) => {
                         let n = CURRENT_DEVICE.startup_rotation() - 3;
@@ -853,7 +853,7 @@ fn main() -> Result<(), Error> {
                         }
                         view = Box::new(Gui::new(context.fb.rect(), &tx, &mut rq,
                                                  &host.as_deref(), &port, &username, &password,
-                                                 encoding, scale, &mut context, panning, disable_touch));
+                                                 encoding, scale, &mut context, panning, disable_touch, long_tap));
                     },
                     Event::Toggle(ViewId::Encoding) => {
                         // println!("{}", encoding);
@@ -862,6 +862,14 @@ fn main() -> Result<(), Error> {
                     Event::Toggle(ViewId::Scaling) => {
                         // println!("{}", scale);
                         scale = !scale;
+                    },
+                    Event::Toggle(ViewId::Wifi) => {
+                        // std::process::Command::new("scripts/wifi-enable.sh").output().ok();
+                        std::process::Command::new("scripts/wifi-enable.sh").spawn().ok();
+                    },
+                    Event::Toggle(ViewId::Long_Tap) => {
+                        // println!("{}", long_tap);
+                        long_tap = !long_tap;
                     },
                     Event::Select(EntryId::FastA2) => {
                         partial_update_mode = UpdateMode::Fast

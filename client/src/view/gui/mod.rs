@@ -21,6 +21,7 @@ use crate::view::button::Button;
 use crate::view::input_field::InputField;
 use crate::view::keyboard::Keyboard;
 use crate::view::common::locate;
+use crate::view::EntryId::ToggleWifi;
 use crate::view::menu::{Menu, MenuKind};
 use crate::view::output_field::OutputField;
 use crate::view::password_field::Password_Field;
@@ -40,7 +41,7 @@ impl Gui {
     pub fn new(rect: Rectangle, hub: &Hub, rq: &mut RenderQueue,
                host: &Option<&str>, port:&u16, username:&Option<String>, password:&Option<String>,
                encoding_enabled:bool, scaling_enabled:bool,
-               context: &mut Context, panning:bool, disable_touch:bool) -> Gui  {
+               context: &mut Context, panning:bool, disable_touch:bool, long_tap:bool) -> Gui  {
         let id = ID_FEEDER.next();
         // let mut children: Vec<Box<dyn View>> = Vec::new();
         let mut children = Vec::new();
@@ -159,7 +160,7 @@ impl Gui {
             rect![
                 rect.min.x,
                 row_height,
-                rect.max.x/2,
+                rect.max.x/3,
                 row_height + small_height - small_thickness],
             Event::Toggle(ViewId::VNC),
             "Start VNC".to_string(),
@@ -167,7 +168,17 @@ impl Gui {
 
         children.push(Box::new(Button::new(
             rect![
-                rect.max.x/2,
+                rect.max.x/3,
+                row_height,
+                rect.max.x/3*2,
+                row_height + small_height + small_thickness],
+            Event::Toggle(ViewId::Wifi),
+            "Connect Wifi".to_string(),
+        )) as Box<dyn View>);
+
+        children.push(Box::new(Button::new(
+            rect![
+                rect.max.x/3*2,
                 row_height,
                 rect.max.x,
                 row_height + small_height + small_thickness],
@@ -253,7 +264,7 @@ impl Gui {
                 row_height + small_height + small_thickness],
             scaling_enabled,
             Event::Toggle(ViewId::Scaling),
-            "Enable scaling".to_string(),
+            "Enable Scaling".to_string(),
         )) as Box<dyn View>);
 
         children.push(Box::new(Toggle_Button::new(
@@ -264,7 +275,7 @@ impl Gui {
                 row_height + small_height + small_thickness],
             encoding_enabled,
             Event::Toggle(ViewId::Encoding),
-            "Custom encoding".to_string(),
+            "Custom Encoding".to_string(),
         )) as Box<dyn View>);
 
         row_height = row_height + small_height + small_thickness;
@@ -273,7 +284,7 @@ impl Gui {
             rect![
                 rect.min.x,
                 row_height,
-                rect.max.x/2,
+                rect.max.x/3,
                 row_height + small_height + small_thickness],
             disable_touch,
             Event::Toggle(ViewId::Touch),
@@ -282,7 +293,18 @@ impl Gui {
 
         children.push(Box::new(Toggle_Button::new(
             rect![
-                rect.max.x/2,
+                rect.max.x/3,
+                row_height,
+                rect.max.x/3*2,
+                row_height + small_height + small_thickness],
+            long_tap,
+            Event::Toggle(ViewId::Long_Tap),
+            "Long Tap".to_string(),
+        )) as Box<dyn View>);
+
+        children.push(Box::new(Toggle_Button::new(
+            rect![
+                rect.max.x/3*2,
                 row_height,
                 rect.max.x,
                 row_height + small_height + small_thickness],
