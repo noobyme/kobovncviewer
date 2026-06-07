@@ -133,7 +133,7 @@ Changelog:
 - I have also setup touchscreen functionality from plato and rustvnc.
 - I have copied over the ClaraColor and LibraColor device.rs from plato's latest version, 
 - added scaling, padding, added gesture swiping recognition from plato
-- If killed nickel beforehand program will be able to read power button events, power button or sleep cover will quit vnc and restart nickel, unless you started from ssh in which case it will not be able to restart nickel. Hold touchscreen for more than 6 seconds to exit without restarting nickel regardless of ssh start or not. If you want to be able to restart nickel, have take plato's nickel.sh and place inside .adds folder. the path is hardcoded, otherwise you can use nickelmenu to restart nickel too see below
+- If killed nickel beforehand program will be able to read power button events, power button or sleep cover will quit vnc and restart nickel, unless you started from ssh in which case it will not be able to restart nickel. Hold touchscreen for more than 6 seconds to exit without restarting nickel regardless of ssh start or not.
 - copied latest framebuffer code from plato, probably wasnt necessary, could have added small changes to add mark 12 code without needing to copy over all other rest of files but i have no device to test it with
 - add panning for resolutions bigger than device can handle
 - minor other changes
@@ -141,7 +141,7 @@ Changelog:
 
 ## Compilation instructions
 
-To compile libaries compile plato, I simply reused plato.
+To compile gui libaries compile plato, I simply reused plato.
 
 To compile on wsl ubuntu noble 24.04, x86_64 CPU
 Go to linux user home directory, Clone repository, Download linaro cross toolchain file (the toolchain itself will do no need for sys root file). We want gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xzn Extract toolchain. Make cargo directory and config file. Add repositories and architecture for armv7, install arm libraries, copy libraries into toolchain directory. Install rustup and target. Build. 
