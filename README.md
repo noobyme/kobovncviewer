@@ -186,7 +186,7 @@ Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 
 ```
 sudo apt update
-sudo apt-get install libz-dev:armhf libbz2-dev:armhf libjpeg-dev:armhf libpng16-dev:armhf libgumbo-dev:armhf libopenjp2-dev:armhf libjbig2dec-dev:armhf
+sudo apt-get install libz-dev:armhf libbz2-dev:armhf libjpeg-dev:armhf libpng-dev:armhf libgumbo-dev:armhf libopenjp2-7-dev:armhf libjbig2dec-dev:armhf
 
 cd /usr/lib/arm-linux-gnueabihf
 cp libz.* libbz2.* libjpeg.* libpng16.* libgumbo.* libopenjp2.* libjbig2dec.* /home/noobyme/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/lib
