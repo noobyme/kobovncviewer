@@ -35,7 +35,7 @@ menu_item:main:VNCGui:cmd_spawn:quiet:exec /mnt/onboard/.adds/kobovncgui/launchv
 
 menu_item:main:ToggleForceWifi:nickel_setting:toggle:force_wifi
 ```
-Edit the launchvnc file to include default parameters like host and password. I havent figured out why Wifi sometimes doesnt work yet. It may be worth trying MickelMenu's toggle force wifi
+Edit the launchvnc file to include default parameters like host and password. I havent figured out why Wifi sometimes doesnt work yet, it seems if you have wifi enabled and attempt to enable it again it produces problems so the solution seems to be only enable it if you havent already done so. It may be worth trying MickelMenu's toggle force wifi
 
 ## Usage
 
