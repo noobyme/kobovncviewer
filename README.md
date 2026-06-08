@@ -25,20 +25,17 @@ https://github.com/pgaskin/NickelMenu
 https://github.com/baskerville/plato
 
 Both are installed the same way, dropping the KoboRoot.tgz into the .kobo folder, which is a hidden file, you need to enable viewing them.
-NickelMenu entries placed inside .adds/nm/nickelmenu.txt folder. 1. kills all programs, launches VNC session then restarts Kobo's UI using plato(youd need to have it installed), 2. enables wifi then launches gui, the launch script handles restarting Kobo UI, 3 is a variation of 2., without first enabling wifi.
+NickelMenu entries placed inside .adds/nm/nickelmenu.txt folder. 1. kills all programs, launches VNC session then restarts Kobo's UI using plato(youd need to have it installed), 2. launches gui, the launch script handles restarting Kobo UI
 
 ```
 menu_item:main:VNCNoGui:nickel_wifi:enable 
 chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/plato-0.9.45/; killall -TERM nickel hindenburg sickel fickel adobehost foxitpdf iink dhcpcd-dbus dhcpcd fmon; /mnt/onboard/kobovncnogui 192.168.1.150 5900 --password password; /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 
-menu_item:main:VNCGui:nickel_wifi:enable 
-chain_success:cmd_spawn:quiet:sleep 15;exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh
-
 menu_item:main:VNCGui:cmd_spawn:quiet:exec /mnt/onboard/.adds/kobovncgui/launchvnc.sh; #/mnt/onboard/.adds/kobovncgui/nickel.sh
 
 menu_item:main:ToggleForceWifi:nickel_setting:toggle:force_wifi
 ```
-Edit the launchvnc file to include default parameters like host and password. The sleep gives time to allow wifi to connect, I havent figured out why Wifi sometimes doesnt work yet. It may be worth trying MickelMenu's toggle force wifi
+Edit the launchvnc file to include default parameters like host and password. I havent figured out why Wifi sometimes doesnt work yet. It may be worth trying MickelMenu's toggle force wifi
 
 ## Usage
 
