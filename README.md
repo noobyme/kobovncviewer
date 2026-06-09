@@ -114,6 +114,12 @@ cd /mnt/onboard/.adds/plato-0.9.45
 /mnt/onboard/.adds/plato-0.9.45/nickel.sh
 ```
 
+This entry is how you start the gui without the launch script, you can use this to start over ssh, you need to change directory and export LD_LIBRARY_PATH.
+```
+menu_item:main:VNCGuiDirect:nickel_wifi:enable 
+chain_success:cmd_spawn:quiet:cd /mnt/onboard/.adds/kobovncgui && export LD_LIBRARY_PATH='libs:/usr/local/Kobo' && /mnt/onboard/.adds/kobovncgui/kobovncguitest --host 192.168.1.71 --gui
+```
+
 Failed to fill whole buffer error? You messed up somewhere in login credentials or server side ip blocking. 
 
 ## Derivatives
