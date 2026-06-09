@@ -2,7 +2,7 @@
 
 I am heavily assisted by AI. 
 
-There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
+There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing after 6 seconds. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
 
 https://github.com/noobyme/libvncserver-1-bit-encoding/releases/tag/debug
 https://github.com/noobyme/tightvnc-kobo-encoding/releases/tag/debug
@@ -71,6 +71,8 @@ Available options:
 - Longtap: Send right click for windows server by pressing and holding, android and linux servers seem to automatically implement this so no need
 - pan: Enable panning instead of click drag
 - disable_touch : Disable touch input during vnc session
+- disable_exit_via_hold : Disable quitting by holding the screen for exit_duration seconds
+- exit_duration: Change time required to exit via hold, default 6 seconds
 
 Advanced users:
 
