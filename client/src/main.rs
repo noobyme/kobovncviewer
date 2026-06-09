@@ -230,6 +230,17 @@ fn main() -> Result<(), Error> {
                 .help("swap red and blue index")
                 .long("invert_red_shift")
         )
+        .arg(
+            Arg::new("disable_exit_via_hold")
+                .help("disable exit via holding the screen")
+                .long("disable_exit_via_hold")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("exit_duration")
+                .help("how long to hold screen for before quitting")
+                .long("exit_duration")
+        )
             .get_matches();
 
     let host = matches.value_of("host").unwrap();
@@ -258,6 +269,9 @@ fn main() -> Result<(), Error> {
 
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
+
+    let disable_exit_via_hold = value_t!(matches.value_of("disable_exit_via_hold"), bool).unwrap_or(false);
+    let exit_duration = value_t!(matches.value_of("exit_duration"), u32).unwrap_or(6);
 
     info!("connecting to {}:{}", host, port);
     let stream = match std::net::TcpStream::connect((host, port)) {
@@ -691,10 +705,12 @@ fn main() -> Result<(), Error> {
         let event_params = event_handling::event_params::handle_events(&rx, scale_factor, width, height,
                                                     fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
                                                     &mut vnc, finger_down_count, finger_seconds, &mut fb,
-                                                    panning, has_drawn_once, scale, long_tap, false, disable_touch);
+                                                    panning, has_drawn_once, scale, long_tap, false, disable_touch,
+                                                    disable_exit_via_hold, exit_duration);
         has_drawn_once = event_params.has_drawn_once;
         finger_down_count =  event_params.finger_down_count;
         if event_params.exit_to_nickel {
+            fb.set_rotation(CURRENT_DEVICE.startup_rotation()).ok();
             break 'running
         };
         if event_params.exit_to_gui {
