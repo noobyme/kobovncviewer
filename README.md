@@ -18,7 +18,7 @@ Do not use with fast changing content like videos.
 
 ## Installing
 
-I have provided a KoboRoot.tgz for the GUI version, simply drop it into the hidden .kobo folder when you plug in your usb, you will need to install NickelMenu to launch it. If you prefer placing it somewhere else you can use the zip file. You can use this tool by connecting to the eInk device through SSH, or using NickelMenu
+I have provided a KoboRoot.tgz for the GUI version which contains plato stuff, simply drop it into the hidden .kobo folder when you plug in your usb, you will need to install NickelMenu to launch it. If you prefer placing it somewhere else you can use the zip file. You can use this tool by connecting to the eInk device through SSH, or using NickelMenu
 
 https://www.mobileread.com/forums/showthread.php?t=254214 This is NiLuJe's SSH
 
