@@ -242,6 +242,17 @@ fn main() -> Result<(), Error> {
                 .help("swap red and blue index")
                 .long("invert_red_shift")
         )
+        .arg(
+            Arg::new("disable_exit_via_hold")
+                .help("disable exit via holding the screen")
+                .long("disable_exit_via_hold")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("exit_duration")
+                .help("how long to hold screen for before quitting")
+                .long("exit_duration")
+        )
         .get_matches();
 
     // let mut host = matches.value_of("host");
@@ -273,6 +284,9 @@ fn main() -> Result<(), Error> {
 
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
+
+    let disable_exit_via_hold = value_t!(matches.value_of("disable_exit_via_hold"), bool).unwrap_or(false);
+    let exit_duration = value_t!(matches.value_of("exit_duration"), u32).unwrap_or(6);
 
     // std::process::Command::new("scripts/wifi-enable.sh").spawn().ok();
 
@@ -605,6 +619,8 @@ fn main() -> Result<(), Error> {
     } else {
         Box::new(KoboFramebuffer2::new(FB_DEVICE).context("can't create framebuffer")?)
     };//new fb
+    // let startup_rotation = rotate;
+    // fb_gui.set_rotation(startup_rotation).ok();
     let mut context = build_context(fb_gui).context("can't build context")?; //new context?
 
     // println!("{:?}",paths);
@@ -730,12 +746,6 @@ fn main() -> Result<(), Error> {
         'gui: while gui_active {
 
             let mut inactive_since = Instant::now();
-
-            // let initial_rotation = CURRENT_DEVICE.transformed_rotation(fb.rotation());
-            // let startup_rotation = CURRENT_DEVICE.startup_rotation();
-            // if !CURRENT_DEVICE.has_gyroscope() && initial_rotation != startup_rotation {
-            //     fb.set_rotation(startup_rotation).ok();
-            // }
 
             context.load_keyboard_layouts(); //load keyboard, require this one
 
@@ -1022,6 +1032,7 @@ fn main() -> Result<(), Error> {
                                 gui_active = false;
                                 // println!("gui");
                                 vnc = Some(new_vnc);
+
                                 fb.draw_rectangle(&device_fb_rect, WHITE);
                                 fb.update(&device_fb_rect, UpdateMode::Full).ok();
                                 break 'gui;
@@ -1051,16 +1062,18 @@ fn main() -> Result<(), Error> {
         let event_params = event_handling::event_params::handle_events(&rx, scale_factor, width, height,
                                                                        fb.width(), fb.height(), x_padding, y_padding, x_offset, y_offset,
                                                                        &mut vnc, finger_down_count, finger_seconds, &mut fb,
-                                                                       panning, has_drawn_once, scale, long_tap, gui_enabled, disable_touch);
+                                                                       panning, has_drawn_once, scale, long_tap, gui_enabled, disable_touch,
+                                                                       disable_exit_via_hold, exit_duration);
         has_drawn_once = event_params.has_drawn_once;
         finger_down_count =  event_params.finger_down_count;
         if event_params.exit_to_nickel {
+            fb.set_rotation(CURRENT_DEVICE.startup_rotation()).ok();
             break 'running
         };
         if event_params.exit_to_gui {
             gui_active = true
         }
-        // };
+
         x_offset = event_params.x_offset;
         y_offset = event_params.y_offset; //if its the same, it will be returned un changed, if changed return changed
 

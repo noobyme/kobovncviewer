@@ -20,7 +20,8 @@ impl event_params {
     pub fn handle_events(rx: &Receiver<Event>, scale_factor: f32, width: u16, height: u16,
                          fb_width: u32, fb_height: u32, x_padding: u32, y_padding: u32, mut x_offset: u32, mut y_offset: u32,
                          vnc: &mut Option<Client>, mut finger_down_count: Instant, finger_seconds: Duration, fb: &mut Box<dyn Framebuffer>,
-                         panning: bool, mut has_drawn_once: bool, scale: bool, long_tap: bool, gui_enabled:bool, disable_touch:bool) -> event_params {
+                         panning: bool, mut has_drawn_once: bool, scale: bool, long_tap: bool, gui_enabled:bool, disable_touch:bool,
+                         disable_exit_via_hold:bool, exit_duration:u32,) -> event_params {
         if let Ok(evt) = rx.try_recv() {
             match evt {
                 Event::Device(de) => {
@@ -159,8 +160,7 @@ impl event_params {
                                                     }
                                                 }
                                             };
-                                            if finger_down_count.elapsed() > Duration::from_secs(6) {
-                                                fb.set_rotation(CURRENT_DEVICE.startup_rotation()).ok();
+                                            if finger_down_count.elapsed() > Duration::from_secs(exit_duration as u64) && !disable_exit_via_hold {
                                                 if gui_enabled {
                                                     return event_params {
                                                         has_drawn_once,
@@ -280,7 +280,6 @@ impl event_params {
                             ..
                         } => {
                             // println!("BUTTON");
-                            fb.set_rotation(CURRENT_DEVICE.startup_rotation()).ok();
                             return event_params {
                                 has_drawn_once,
                                 finger_down_count,
@@ -292,7 +291,6 @@ impl event_params {
                         }
                         DeviceEvent::CoverOn => {
                             // println!("COVER");
-                            fb.set_rotation(CURRENT_DEVICE.startup_rotation()).ok();
                             return event_params {
                                 has_drawn_once,
                                 finger_down_count,
