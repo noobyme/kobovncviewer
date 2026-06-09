@@ -4,6 +4,10 @@ I am heavily assisted by AI.
 
 There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
 
+https://github.com/noobyme/libvncserver-1-bit-encoding/releases/tag/debug
+https://github.com/noobyme/tightvnc-kobo-encoding/releases/tag/debug
+https://github.com/noobyme/droidVNC-NG-Floydsteinberg-encoding/releases/tag/Kobo
+
 This tool has been confirmed to work on Nia. It should work on the latest devices too
 
 VNC server tested successfuly with TightVNC, x11vnc, DroidVNC NG.
