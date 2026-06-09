@@ -2,6 +2,8 @@
 
 I am heavily assisted by AI. 
 
+https://www.youtube.com/watch?v=0WmfID2UqME demo
+
 There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing after 6 seconds. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
 
 https://github.com/noobyme/libvncserver-1-bit-encoding/releases/tag/debug
