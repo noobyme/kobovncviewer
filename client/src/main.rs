@@ -234,12 +234,12 @@ fn main() -> Result<(), Error> {
             Arg::new("disable_exit_via_hold")
                 .help("disable exit via holding the screen")
                 .long("disable_exit_via_hold")
-                .takes_value(true),
         )
         .arg(
             Arg::new("exit_duration")
                 .help("how long to hold screen for before quitting")
                 .long("exit_duration")
+                .takes_value(true),
         )
             .get_matches();
 
@@ -270,7 +270,7 @@ fn main() -> Result<(), Error> {
     let set_dither = value_t!(matches.value_of("sd"), bool).unwrap_or(false);
     let set_monochrome = value_t!(matches.value_of("sm"), bool).unwrap_or(false);
 
-    let disable_exit_via_hold = value_t!(matches.value_of("disable_exit_via_hold"), bool).unwrap_or(false);
+    let disable_exit_via_hold = matches.is_present("disable_exit_via_hold");
     let exit_duration = value_t!(matches.value_of("exit_duration"), u32).unwrap_or(6);
 
     info!("connecting to {}:{}", host, port);
