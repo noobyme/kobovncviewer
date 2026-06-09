@@ -21,7 +21,8 @@ impl event_params {
                          fb_width: u32, fb_height: u32, x_padding: u32, y_padding: u32, mut x_offset: u32, mut y_offset: u32,
                          vnc: &mut Option<Client>, mut finger_down_count: Instant, finger_seconds: Duration, fb: &mut Box<dyn Framebuffer>,
                          panning: bool, mut has_drawn_once: bool, scale: bool, long_tap: bool, gui_enabled:bool, disable_touch:bool,
-                         disable_exit_via_hold:bool, exit_duration:u32,) -> event_params {
+                         disable_exit_via_hold:bool, exit_duration:u32,
+                         ) -> event_params {
         if let Ok(evt) = rx.try_recv() {
             match evt {
                 Event::Device(de) => {
