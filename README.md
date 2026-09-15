@@ -1,5 +1,10 @@
 # kobovnc
 
+Use your Kobo as a monitor. Use your Kobo as an external display. Use your Kobo as VNC client.
+<img width="4080" height="3060" alt="IMG_20260915_121826" src="https://github.com/user-attachments/assets/4058939f-0bd5-4911-87db-b711c3ca82a7" />
+<img width="3060" height="4080" alt="IMG_20260915_121908" src="https://github.com/user-attachments/assets/96e95e27-4954-4d19-9679-172475e62478" />
+
+
 I am heavily assisted by AI. 
 
 https://www.youtube.com/watch?v=0WmfID2UqME demo
