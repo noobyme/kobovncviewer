@@ -11,7 +11,7 @@ I am heavily assisted by AI. I have no idea how to improve its usability anymore
 https://www.youtube.com/watch?v=jgiS_uuwaj4 demo1
 https://www.youtube.com/watch?v=0WmfID2UqME demo2
 
-There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing after 6 seconds. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories, but it doesnt work well, I'm not sure if its a hardware or software limitation, using it together with scaling makes it much worse.
+There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing after 6 seconds. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories, but it doesnt work well, I'm not sure if its a hardware or software limitation, using it together with scaling makes it much worse. I thought pointer trails would go away with higher speed A2 waveform and custom encoding but it didnt
 
 https://github.com/noobyme/libvncserver-1-bit-encoding/releases/tag/debug
 https://github.com/noobyme/tightvnc-kobo-encoding/releases/tag/debug
