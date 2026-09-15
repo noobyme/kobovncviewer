@@ -1,3 +1,5 @@
+
+
 # kobovnc
 
 Use your Kobo as a monitor. Use your Kobo as an external display. Use your Kobo as VNC client.
@@ -6,7 +8,8 @@ Use your Kobo as a monitor. Use your Kobo as an external display. Use your Kobo 
 
 I am heavily assisted by AI. I have no idea how to improve its usability anymore, did everything I could think of
 
-https://www.youtube.com/watch?v=0WmfID2UqME demo
+https://www.youtube.com/watch?v=jgiS_uuwaj4 demo1
+https://www.youtube.com/watch?v=0WmfID2UqME demo2
 
 There is now touch input, scaling, padding, panning, and a way to quit the program via long tapping the screen and releasing after 6 seconds. Power button and sleep cover can be used to exit as well, provided you have killed nickel beforehand. Using ClaudeAI I have obtained a custom high speed encoding, see my other repositories.
 
